@@ -3052,8 +3052,9 @@ TremoloChordType Chord::tremoloChordType() const
                   return TremoloChordType::TremoloFirstNote;
             else if (_tremolo->chord2() == this)
                   return TremoloChordType::TremoloSecondNote;
-            else
-                  qFatal("Chord::tremoloChordType(): inconsistency %p - %p, this is %p", _tremolo->chord1(), _tremolo->chord2(), this);
+// commented because crashes when using ODLA
+//            else
+//                  qFatal("Chord::tremoloChordType(): inconsistency %p - %p, this is %p", _tremolo->chord1(), _tremolo->chord2(), this);
             }
       return TremoloChordType::TremoloSingle;
       }

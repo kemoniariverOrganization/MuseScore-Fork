@@ -395,7 +395,13 @@ void Score::putNote(const Position& p, bool replace)
             }
       if (addToChord && cr->isChord()) {
             // if adding, add!
-            addNote(toChord(cr), nval, forceAccidental);
+            // addNote(toChord(cr), nval, forceAccidental);
+            // ODLA FIX START: select last node
+            Note * newNote = addNote(toChord(cr), nval, forceAccidental);
+            if(newNote)
+                select(newNote, SelectType::SINGLE, 0);
+            // ODLA FIX END
+
             _is.setAccidentalType(AccidentalType::NONE);
             return;
             }
