@@ -141,6 +141,7 @@ QString UpdateChecker::getUpdatePrefString()
 
 void UpdateChecker::check(QString currentVersion, bool m)
       {
+    return;
       manual = m;
 #if defined(Q_OS_WIN)
       os = "win";
@@ -181,6 +182,7 @@ UpdateCheckerBase::UpdateCheckerBase(QObject* parent)
 
 bool UpdateCheckerBase::hasToCheck()
       {
+        return false;
       if(!getUpdatePrefValue())
             return false;
 //disable embedded updating for both stable/unstable Mac builds and stable Win builds

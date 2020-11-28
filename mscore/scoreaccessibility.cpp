@@ -85,6 +85,7 @@ QAccessibleInterface* AccessibleScoreView::ScoreViewFactory(const QString &class
 
 
 ScoreAccessibility* ScoreAccessibility::inst = 0;
+QString ScoreAccessibility::statusBarString;
 
 ScoreAccessibility::ScoreAccessibility(QMainWindow* mainWindow) : QObject(mainWindow)
       {
@@ -107,6 +108,7 @@ ScoreAccessibility::~ScoreAccessibility()
 void ScoreAccessibility::clearAccessibilityInfo()
       {
       statusBarLabel->setText("");
+      statusBarString = "";
       MuseScoreView* view = static_cast<MuseScore*>(mainWindow)->currentScoreView();
       if (view)
             view->score()->setAccessibleInfo(tr("No selection"));
@@ -188,7 +190,7 @@ void ScoreAccessibility::currentInfoChanged()
                   if (e->staffIdx() != oldStaff)
                         optimizedStaff = QString("%1 (%2)").arg(staff).arg(staffName);
                   }
-
+            statusBarString = rez;
             statusBarLabel->setText(rez);
             QString screenReaderRez;
             if (rez != oldStatus || oldScreenReaderInfo.isEmpty()) {
@@ -226,11 +228,13 @@ void ScoreAccessibility::currentInfoChanged()
             bar_beat = barbeat(endSegment);
             barsAndBeats += " " + tr("End Measure: %1; End Beat: %2").arg(QString::number(bar_beat.first)).arg(QString::number(bar_beat.second));
             statusBarLabel->setText(tr("Range Selection") + barsAndBeats);
+            statusBarString = tr("Range Selection") + barsAndBeats;
             score->setAccessibleInfo(tr("Range Selection") + barsAndBeats);
             }
       else if (score->selection().isList()) {
             statusBarLabel->setText(tr("List Selection"));
             score->setAccessibleInfo(tr("List Selection"));
+            statusBarString = tr("List Selection");
             }
       }
 

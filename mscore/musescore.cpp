@@ -126,6 +126,7 @@
 #include "awl/aslider.h"
 #include "extension.h"
 #include "thirdparty/qzip/qzipreader_p.h"
+#include "odladriver.h"
 
 #include "sparkle/autoUpdater.h"
 #if defined(WIN_SPARKLE_ENABLED)
@@ -1951,6 +1952,9 @@ MuseScore::MuseScore()
             _loginManager = new LoginManager(getAction(saveOnlineMenuItem), this);
 
       connect(qApp, &QGuiApplication::focusWindowChanged, this, &MuseScore::onFocusWindowChanged);
+
+      _odlaDriver = new ODLA::ODLADriver(this);
+      _odlaDriver->init();
       }
 
 MuseScore::~MuseScore()
@@ -2591,6 +2595,9 @@ void MuseScore::setCurrentScoreView(ScoreView* view)
             }
       else
             cs = 0;
+
+      _odlaDriver->setCurrentScore(qobject_cast<MasterScore*>(cs));
+      _odlaDriver->setScoreView(cv);
 
       if (ScriptRecorder* rec = getScriptRecorder())
             rec->recordCurrentScoreChange();
@@ -7907,6 +7914,9 @@ void MuseScore::init(QStringList& argv)
       if (QWidget* menubar = mscore->menuWidget())
             TourHandler::addWidgetToTour("welcome", menubar, "menubar");
 
+      // ODLA FIX: disable start center action
+      getAction("startcenter")->setChecked(false);
+      /* ODLA FIX: commented to disable start center and start tour
       if (!scoresOnCommandline && preferences.getBool(PREF_UI_APP_STARTUP_SHOWSTARTCENTER) && (!restoredSession || mscore->scores().size() == 0)) {
 #ifdef Q_OS_MAC
 // ugly, but on mac we get an event when a file is open.
@@ -7932,7 +7942,7 @@ void MuseScore::init(QStringList& argv)
             mscore->tourHandler()->startTour("welcome");
             //otherwise, welcome tour will appear on closing StartCenter
             }
-
+            */
       if (sc) {
             sc->close();
             qApp->processEvents();

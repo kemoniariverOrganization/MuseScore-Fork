@@ -28,6 +28,11 @@
 #include "libmscore/score.h"
 #include "sessionstatusobserver.h"
 
+namespace ODLA
+{
+    class ODLADriver;
+}
+
 namespace Ms {
 
 class UploadScoreDialog;
@@ -896,6 +901,9 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       bool importExtension(QString path);
       bool uninstallExtension(QString extensionId);
       Q_INVOKABLE bool isInstalledExtension(QString extensionId);
+
+      ODLA::ODLADriver* _odlaDriver;
+      friend class ODLA::ODLADriver;
 
       void focusScoreView();
 

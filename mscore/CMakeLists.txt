@@ -307,6 +307,7 @@ add_library(mscoreapp STATIC
       ${PCH}
       ${INCS}
 
+      odladriver.h odladriver.cpp
       abstractdialog.h accessibletoolbutton.h albummanager.h
       alsa.h alsamidi.h analyse.h articulationprop.h bb.h
       bendcanvas.h breaksdialog.h capella.h
