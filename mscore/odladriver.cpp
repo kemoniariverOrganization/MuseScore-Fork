@@ -1803,23 +1803,33 @@ void ODLADriver::onIncomingData()
 
                         if (tt != TremoloType::INVALID_TREMOLO)
                         {
-                            Tremolo* tr = new Tremolo(_currentScore);
-                            tr->setParent(_currentScore->inputState().cr());
-                            tr->setTremoloType(tt);
+                            _currentScore->startCmd();
 
-                            ChordRest* current = _currentScore->inputState().cr();
-                            if (current != nullptr)
+                            Selection sel = _currentScore->selection();
+                            if (sel.isNone())
+                                  return;
+
+                            for (Element* target : sel.elements())
                             {
+                                Tremolo* tr = new Tremolo(_currentScore);
+                                tr->setParent(_currentScore->inputState().cr());
+                                tr->setTremoloType(tt);
 
                                 EditData& dropData = _scoreView->getEditData();
-                                dropData.pos         = current->pagePos();
+                                dropData.pos         = target->pagePos();
                                 dropData.dragOffset  = QPointF();
                                 dropData.dropElement = tr;
+                                if (target->acceptDrop(dropData))
+                                {
+                                      Element* el = target->drop(dropData);
+                                      if (el && !_scoreView->noteEntryMode())
+                                            _currentScore->select(el, SelectType::SINGLE, 0);
 
-                                _currentScore->startCmd();
-                                current->drop(dropData);
-                                _currentScore->endCmd();
+                                      dropData.dropElement = 0;
+                                }
                             }
+                            _currentScore->endCmd();
+
                         }
                     }
                 }
