@@ -411,8 +411,29 @@ void ODLADriver::onIncomingData()
                 int from =  rangeString.split("-").first().toInt();
                 int to =    rangeString.split("-").last().toInt();
 
-                _scoreView->searchMeasure(from);
-                _currentScore->selectRange(_currentScore->measure(to - 1), _currentScore->nstaves() - 1);
+                //If we didn't insert an existing start measure break from command
+                if(!_scoreView->searchMeasure(from))
+                    break;
+
+                Measure* measure_from = _currentScore->firstMeasureMM();
+
+                for(int i = 1; i < from; i++)
+                    measure_from = measure_from->nextMeasure();
+
+                Measure* measure_to = measure_from;
+
+                //If we didn't insert an existing end measure we set last measure
+                if(_scoreView->searchMeasure(to))
+                    for(int i = from; i < to; i++)
+                       measure_to = measure_to->nextMeasure();
+                else
+                    measure_to = _currentScore->lastMeasureMM();
+
+                _scoreView->changeState(ViewState::NOTE_ENTRY);
+
+                _currentScore->deselectAll();
+                _currentScore->selectRange(measure_from, 0);
+                _currentScore->selectRange(measure_to, _currentScore->nstaves() - 1);
                 _currentScore->setUpdateAll();
                 _currentScore->update();
 
@@ -1448,6 +1469,8 @@ void ODLADriver::onIncomingData()
 
             else if (msg.startsWith("TEMPO"))
             {
+                _scoreView->changeState(ViewState::NOTE_ENTRY);
+
                 QStringList parts = msg.split(" ");
                 bool parsed = true;
 
@@ -1708,6 +1731,8 @@ void ODLADriver::onIncomingData()
             // put note
             else if (msg.startsWith("TIMESIG"))
             {
+                _scoreView->changeState(ViewState::NOTE_ENTRY);
+
                 if (_currentScore->inputState().noteEntryMethod() == NoteEntryMethod::STEPTIME &&
                         _currentScore->inputState().noteEntryMode())
                 {
