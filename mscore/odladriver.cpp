@@ -898,6 +898,9 @@ void ODLADriver::onIncomingData()
 
             else if (msg.startsWith("CHORDLINE"))
             {
+                if(!_currentScore->inputState().cr())
+                    break;
+
                 QStringList parts = msg.split(" ");
 
                 if (parts.length() > 1)
@@ -1043,6 +1046,9 @@ void ODLADriver::onIncomingData()
 
             else if (msg.startsWith("CLEF"))
             {
+                if(!_currentScore->inputState().cr())
+                    break;
+
                 QString txt = msg.split(" ").at(1);
                 ClefType ct = ClefType::INVALID;
                 if (txt.compare("NONE") == 0)        { ct = ClefType::INVALID; }
@@ -1096,6 +1102,9 @@ void ODLADriver::onIncomingData()
 
             else if (msg.startsWith("BARS"))
             {
+                if(!_currentScore->inputState().cr())
+                    break;
+
                 QString txt = msg.split(" ").at(1);
                 BarLineType bt = BarLineType::NORMAL;
                 int from = -1;
@@ -1160,7 +1169,7 @@ void ODLADriver::onIncomingData()
             else if (msg.startsWith("REP_MEASURE"))
             {
                 // simulate drag&drop on selected measures
-                Selection sel = _currentScore->selection();                
+                Selection sel = _currentScore->selection();
                 if (sel.isNone())
                       return;
 
@@ -1189,6 +1198,9 @@ void ODLADriver::onIncomingData()
 
             else if (msg.startsWith("MARKER"))
             {
+                if(!_currentScore->inputState().cr())
+                    break;
+
                 QString txt = msg.split(" ").at(1);
                 Marker::Type mt = Marker::Type::USER;
 
@@ -1241,6 +1253,9 @@ void ODLADriver::onIncomingData()
 
             else if (msg.startsWith("JUMP"))
             {
+                if(!_currentScore->inputState().cr())
+                    break;
+
                 QString txt = msg.split(" ").at(1);
                 Jump::Type jt = Jump::Type::USER;
 
@@ -1809,6 +1824,9 @@ void ODLADriver::onIncomingData()
             // tremolo
             else if (msg.startsWith("TREMOLO"))
             {
+                if(!_currentScore->inputState().cr())
+                    break;
+
                 if (_currentScore->inputState().cr()->type() == ElementType::CHORD)
                 {
                     QStringList parts = msg.split(" ");
@@ -2062,6 +2080,9 @@ bool ODLADriver::addSpannerToCurrentSelection(Spanner *spanner)
             }
             else
             {
+
+                if(!_currentScore->inputState().cr())
+                    return false;
                 // drop on current measure only
                 _currentScore->startCmd();
                 _currentScore->cmdAddSpanner(spanner, _currentScore->inputState().cr()->pagePos());
