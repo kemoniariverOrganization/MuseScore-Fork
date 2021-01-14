@@ -44,6 +44,8 @@
 #include "libmscore/barline.h"
 #include "seq.h"
 #include "palette/palettetree.h"
+#include "palette.h"
+
 
 namespace ODLA {
 
@@ -1307,7 +1309,6 @@ void ODLADriver::onIncomingData()
 
             else if (msg.startsWith("VOLTA"))
             {
-                bool parsed = true;
                 QString txt = msg.split(" ").at(1);
 
                 int volta = 0;
@@ -1317,18 +1318,16 @@ void ODLADriver::onIncomingData()
                 else if (txt.compare("II") == 0)     { volta = 2; }
                 else if (txt.compare("III") == 0)    { volta = 3; }
                 else if (txt.compare("II_OPEN") == 0){ volta = 2; closed = false; }
-                else { parsed = false; }
+                else break;
 
-                if (parsed)
-                {
-                    Volta* spanner = static_cast<Volta*>(Element::create(ElementType::VOLTA, _currentScore));
-                    spanner->setVoltaType(closed? Volta::Type::CLOSED : Volta::Type::OPEN);
-                    spanner->setText(QString::number(volta) + ".");
-                    spanner->setEndings(QList<int>() << volta);
+                Volta* spanner = static_cast<Volta*>(Element::create(ElementType::VOLTA, _currentScore));
+                spanner->setVoltaType(closed? Volta::Type::CLOSED : Volta::Type::OPEN);
+                spanner->setText(QString::number(volta) + ".");
+                spanner->setEndings(QList<int>() << volta);
 
-                    if (!addSpannerToCurrentSelection(spanner))
-                        delete spanner;
-                }
+                _currentScore->endCmd();
+                Palette::applyPaletteElement(spanner);
+                _currentScore->endCmd();
             }
 
             else if (msg.startsWith("LINE"))
