@@ -97,7 +97,7 @@ void ODLADriver::onIncomingData()
     _museScore->setWindowState( (_museScore->windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
     _museScore->raise();
     _museScore->activateWindow();
-
+    bool escape = false;
     while(_localSocket->canReadLine())
     {
         QString msg = QString::fromUtf8(_localSocket->readLine());
@@ -108,6 +108,17 @@ void ODLADriver::onIncomingData()
 
         if (_currentScore && _scoreView)
         {
+            if (msg.startsWith("^"))
+            {
+                _museScore->changeState(ScoreState::STATE_NOTE_ENTRY);
+                msg.remove(0,1);
+            }
+            if (msg.startsWith("!"))
+            {
+                escape = true;
+                msg.remove(0,1);
+            }
+
             if (msg.startsWith("cs:"))
             {
                 QString cmd = msg.split(":").last();
@@ -337,16 +348,6 @@ void ODLADriver::onIncomingData()
                     }
                 }
             }
-
-            else if (msg.startsWith("SETSTATE"))
-            {
-                QString rangeString = msg.split(":").last();
-                ScoreState state = static_cast<ScoreState>(rangeString.split("-").first().toInt());
-                _museScore->changeState(state);
-                if (MScore::debugMode)
-                    qDebug() << "State changed to " << int(state);
-            }
-
             else if (msg.startsWith("GOTO"))
             {
                 QStringList parts = msg.split(" ");
@@ -431,7 +432,7 @@ void ODLADriver::onIncomingData()
                 else
                     measure_to = _currentScore->lastMeasureMM();
 
-                _museScore->changeState(ScoreState::STATE_NOTE_ENTRY_METHOD_STEPTIME);
+                _museScore->changeState(ScoreState::STATE_NOTE_ENTRY);
 
                 _currentScore->deselectAll();
                 _currentScore->selectRange(measure_from, 0);
@@ -1483,7 +1484,7 @@ void ODLADriver::onIncomingData()
 
             else if (msg.startsWith("TEMPO"))
             {
-                _museScore->changeState(ScoreState::STATE_NOTE_ENTRY_METHOD_STEPTIME);
+                _museScore->changeState(ScoreState::STATE_NOTE_ENTRY);
 
                 QStringList parts = msg.split(" ");
                 bool parsed = true;
@@ -1745,7 +1746,7 @@ void ODLADriver::onIncomingData()
             // put note
             else if (msg.startsWith("TIMESIG"))
             {
-                _museScore->changeState(ScoreState::STATE_NOTE_ENTRY_METHOD_STEPTIME);
+                _museScore->changeState(ScoreState::STATE_NOTE_ENTRY);
 
                 if (_currentScore->inputState().noteEntryMethod() == NoteEntryMethod::STEPTIME &&
                         _currentScore->inputState().noteEntryMode())
@@ -2011,6 +2012,12 @@ void ODLADriver::onIncomingData()
                 _currentScore->endCmd();
             }
         }
+    }
+    if(escape)
+    {
+        _currentScore->startCmd();
+        _scoreView->cmd("escape");
+        _currentScore->endCmd();
     }
     collectAndSendStatus();
 }
