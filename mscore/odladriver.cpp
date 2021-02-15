@@ -2072,12 +2072,6 @@ void ODLADriver::collectAndSendStatus()
         status_message.range_fields.lastStaff       = getStaff(last_element);       // Byte 10: staff of element last selected
     }
 
-    qDebug() << "Message lenght" << len;
-
-    for (int i = 0; i < len; i++)
-        qDebug() << "Byte" << i << ":" << quint8(status_message.data[i]);
-
-
     int written = _localSocket->write(QByteArray(status_message.data, len));
     _localSocket->flush();
 
@@ -2237,7 +2231,6 @@ Element *ODLADriver::findElementBefore(Element *el, ElementType type, int staffI
         while (i.hasPrevious())
         {
             Element *toReturn = i.previous();
-            //qDebug() << "type: " << toReturn->type();
             if(toReturn->type() == type)
             {
                 if (staffIdx == -1 || toReturn->staffIdx() == staffIdx)
