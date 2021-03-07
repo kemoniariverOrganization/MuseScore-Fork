@@ -2026,7 +2026,6 @@ void ODLADriver::onIncomingData()
 void ODLADriver::collectAndSendStatus()
 {
     // After execute command send an update status to ODLA
-    //QString status = QString("SCOREVIEWSTATUS:%1\n").arg(int(_scoreView->state));
     union state_message_t status_message;
     Selection sel = _currentScore->selection();
 
@@ -2036,7 +2035,7 @@ void ODLADriver::collectAndSendStatus()
     status_message.common_fields.selectionState = sel.state();             // type of selection
     status_message.common_fields.selectedElements = sel.elements().size(); // number of elements selected
 
-    if(sel.elements().size() == 1) //if we have only an element selected
+    if(sel.isSingle()) //if we have only an element selected
     {
         Element* e = sel.element();
 
@@ -2057,19 +2056,19 @@ void ODLADriver::collectAndSendStatus()
         status_message.element_fields.voiceNum      = getVoice(e);                   // Byte 17: voice of element selected
         status_message.element_fields.bpm           = getBPM(e);                       // Byte 19: bpm number LSB of element selected
     }
-    else if(sel.elements().size() > 1) //if we have more than an element selected
+    else if(sel.isRange()) //if we have more than an element selected
     {
-        Element* first_element = sel.elements().first();
-        Element* last_element = sel.elements().last();
+        Segment* startSegment = sel.startSegment();
+        Segment* endSegment = sel.endSegment() ? sel.endSegment()->prev1MM() : _currentScore->lastSegment();
 
         len = status_message.common_fields.msgLen    = sizeof(state_message_t::range_fields_t);
         status_message.common_fields.type = RANGE_ELEMENT;
-        status_message.range_fields.firstMesaure    = getMeasureNumber(first_element);
-        status_message.range_fields.lastMesaure     = getMeasureNumber(last_element);
-        status_message.range_fields.firstBeat       = getBeat(first_element);      // Byte 7: beat of element first selected
-        status_message.range_fields.lastBeat        = getBeat(last_element);
-        status_message.range_fields.firstStaff      = getStaff(first_element);       // Byte 8: staff of element last selected
-        status_message.range_fields.lastStaff       = getStaff(last_element);       // Byte 10: staff of element last selected
+        status_message.range_fields.firstMesaure    = getMeasureNumber(startSegment);
+        status_message.range_fields.lastMesaure     = getMeasureNumber(endSegment);
+        status_message.range_fields.firstBeat       = getBeat(startSegment);
+        status_message.range_fields.lastBeat        = getBeat(endSegment);
+        status_message.range_fields.firstStaff      = getStaff(sel.elements().first());
+        status_message.range_fields.lastStaff       = getStaff(sel.elements().last());
     }
 
     int written = _localSocket->write(QByteArray(status_message.data, len));
@@ -2139,24 +2138,39 @@ quint8 ODLADriver::getDots(Element *e)
 // Get measure number of an element
 int ODLADriver::getMeasureNumber(Ms::Element* e)
 {
-    Ms::Element* prev = findElementParent(e, ElementType::MEASURE);
-
-    if(!prev)
-        return -1;
+    Segment* seg;
+    if(e->type() != ElementType::SEGMENT)
+        seg = static_cast<Segment*>(findElementParent(e, ElementType::SEGMENT));
     else
-        return (static_cast<Measure*>(prev))->no() + 1;
+        seg = static_cast<Segment*>(e);
+    if(!seg) return 0;
+
+    int bar = 0;
+    int beat = 0;
+    int ticks = 0;
+    TimeSigMap* tsm = e->score()->sigmap();
+    tsm->tickValues(seg->tick().ticks(), &bar, &beat, &ticks);
+
+    return bar + 1;
 }
 
 // Get beat of an element in a measure
 quint8 ODLADriver::getBeat(Ms::Element* e)
 {
-    qDebug() << "type: " << e->type();
-    Ms::Element* prev = findElementParent(e, ElementType::SEGMENT);
-
-    if(!prev)
-        return 0xFF;
+    Segment* seg;
+    if(e->type() != ElementType::SEGMENT)
+        seg = static_cast<Segment*>(findElementParent(e, ElementType::SEGMENT));
     else
-        return (static_cast<Segment*>(prev))->rtick().numerator() + 1;
+        seg = static_cast<Segment*>(e);
+    if(!seg) return 0;
+
+    int bar = 0;
+    int beat = 0;
+    int ticks = 0;
+    TimeSigMap* tsm = e->score()->sigmap();
+    tsm->tickValues(seg->tick().ticks(), &bar, &beat, &ticks);
+
+    return beat + 1;
 }
 
 // Get staff where element is placed
@@ -2179,12 +2193,7 @@ ClefType ODLADriver::getClef(Element *e)
 // Get the time signature of the context of element
 Fraction ODLADriver::getTimeSig(Element *e)
 {
-    Ms::Element* prev = findElementBefore(e, ElementType::TIMESIG);
-
-    if(!prev)
-        return Fraction(0,0); //isValid return false if den = 0
-    else
-        return (static_cast<TimeSig*>(prev))->sig();
+    return e->score()->sigmap()->timesig(0).timesig();
 }
 
 // Get the Staff Key of the element
