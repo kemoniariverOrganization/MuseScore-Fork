@@ -60,34 +60,29 @@ ODLADriver::ODLADriver(QObject *parent) : QObject(parent)
     _untitledPrefix = "Untitled_";
     _editingChord = false;
 
-    QTimer *reconnectTimer = new QTimer(this);
-    reconnectTimer->setInterval(2000);
+    _reconnectTimer = new QTimer(this);
+    _reconnectTimer->start(2000);
 
     connect(_localSocket, &QLocalSocket::connected, this, &ODLADriver::onConnected);
     connect(_localSocket, &QLocalSocket::readyRead, this, &ODLADriver::onIncomingData);
 
-    connect(reconnectTimer, &QTimer::timeout, this, &ODLADriver::init);
-    connect(_localSocket, &QLocalSocket::connected, reconnectTimer, &QTimer::stop);
-    connect(_localSocket, &QLocalSocket::disconnected, reconnectTimer, static_cast<void (QTimer::*)()> (&QTimer::start));
+    connect(_reconnectTimer, &QTimer::timeout, this, &ODLADriver::attemptConnection);
+    connect(_localSocket, &QLocalSocket::disconnected, _reconnectTimer, static_cast<void (QTimer::*)()> (&QTimer::start));
 }
 
-void ODLADriver::init()
+void ODLADriver::attemptConnection()
 {
-    if (_localSocket != nullptr)
+    static int attempt = 0;
+    if (_localSocket && (_localSocket->state() == QLocalSocket::UnconnectedState))
     {
         _localSocket->connectToServer("ODLA_MSCORE_SERVER", QIODevice::ReadWrite);
-
-        if(!_localSocket->waitForConnected(2000))
-        {
-            emit _localSocket->disconnected();
-        }
-
-        qDebug() << "Connected to server";
+        qDebug() << "Connecting to server attempt " << ++attempt;
     }
 }
 
 void ODLADriver::onConnected()
 {
+    _reconnectTimer->stop();
     qDebug() << "Connected to ODLA server";
 }
 

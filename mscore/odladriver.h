@@ -77,7 +77,7 @@ public:
 signals:
 
 public slots:
-    void init();
+    void attemptConnection();
     void setCurrentScore(Ms::MasterScore* current);
 
 protected slots:
@@ -111,6 +111,7 @@ protected:
 
     Ms::Element* findElementBefore(Ms::Element *el, Ms::ElementType type, int staffIdx = -1);
     Ms::Element* findElementParent(Ms::Element *el, Ms::ElementType type);
+    QTimer *_reconnectTimer;
 };
 
 } // namespace ODLA
