@@ -208,21 +208,6 @@ void ODLADriver::onIncomingData()
                 _museScore->cmd(getAction("page-settings"), "page-settings");
             }
 
-            else if (msg.compare("INSTRUMENTS") == 0)
-            {
-                _museScore->cmd(getAction("instruments"), "instruments");
-            }
-
-            else if (msg.compare("CONCERT_PITCH") == 0)
-            {
-                // toggle concert-pitch
-                _currentScore->startCmd();
-                bool cp = ! (_currentScore->styleB(Sid::concertPitch));
-                _currentScore->style().set(Sid::concertPitch, cp);
-                _currentScore->endCmd();
-
-                getAction("concert-pitch")->setChecked(cp);
-            }
 
             else if (msg.startsWith("INSERT_MEASURES"))
             {
@@ -256,93 +241,6 @@ void ODLADriver::onIncomingData()
                 _museScore->cmd(a, "loop");
             }
 
-            else if (msg.compare("ADVSEL") == 0)
-            {
-                QAction* a = getAction("toggle-selection-window");
-                a->toggle();
-                _museScore->cmd(a, "toggle-selection-window");
-            }
-
-            else if (msg.compare("ZOOMIN") == 0)
-            {
-                _museScore->cmd(getAction("zoomin"), "zoomin");
-            }
-
-            else if (msg.compare("ZOOMOUT") == 0)
-            {
-                _museScore->cmd(getAction("zoomout"), "zoomout");
-            }
-
-            else if (msg.compare("TRANSPOSE") == 0)
-            {
-                _museScore->cmd(getAction("transpose"), "transpose");
-            }
-
-            else if (msg.compare("EXPLODE") == 0)
-            {
-                // force note input OFF
-                setNoteEntryMode(false);
-                _currentScore->cmd(getAction("explode"), _scoreView->getEditData());
-            }
-
-            else if (msg.compare("IMPLODE") == 0)
-            {
-                // force note input OFF
-                setNoteEntryMode(false);
-                _currentScore->cmd(getAction("implode"), _scoreView->getEditData());
-            }
-
-            else if (msg.compare("FILL_SLASHES") == 0)
-            {
-                _currentScore->cmd(getAction("slash-fill"), _scoreView->getEditData());
-            }
-
-            else if (msg.compare("SLASHES") == 0)
-            {
-                // force note input OFF
-                setNoteEntryMode(false);
-                _currentScore->cmd(getAction("slash-rhythm"), _scoreView->getEditData());
-            }
-
-            else if (msg.compare("TRANSPORT") == 0)
-            {
-                // force note input OFF
-                setNoteEntryMode(false);
-                _museScore->cmd(getAction("toggle-transport"), "toggle-transport");
-            }
-
-            else if (msg.compare("IMAGE_MODE") == 0)
-            {
-                // store current position in screen coordinates
-                ChordRest* cr = _currentScore->inputState().cr();
-                QPointF crPagePos;
-                if (cr != nullptr)
-                    crPagePos = cr->pagePos();
-
-                if (!_scoreView->fotoMode())
-                {
-                    // force note input OFF to allow image capture
-                    setNoteEntryMode(false);
-                }
-
-                // toggle image capture
-                _currentScore->startCmd();
-                _scoreView->cmd(getAction("fotomode"));
-                _currentScore->endCmd();
-
-                // when image capture is on, capture full page
-                if (_scoreView->fotoMode())
-                {
-                    Page* page = _scoreView->point2page(crPagePos);
-                    if (page != nullptr)
-                    {
-                        _scoreView->_foto->setbbox(page->tbbox().translated(page->canvasPos()));
-                        _scoreView->updateGrips();
-
-                        _scoreView->saveFotoAs(false, _scoreView->_foto->canvasBoundingRect());
-                    }
-                }
-            }
             else if (msg.startsWith("GOTO"))
             {
                 QStringList parts = msg.split(" ");
@@ -372,35 +270,6 @@ void ODLADriver::onIncomingData()
                     _scoreView->searchMeasure(measureNumber);
                 }
                 _currentScore->endCmd();
-            }
-
-            // move cursor:
-            // MOVE PREV|NEXT CHORD|MEASURE
-            // MOVE UP|DOWN CHORD|STAFF
-            else if (msg.startsWith("MOVE"))
-            {
-                QStringList parts = msg.split(" ");
-
-                if (parts.length() >= 2)
-                {
-                    QString txt1 = parts.at(1);
-                    QString txt2 = parts.at(2);
-                    QString actionName;
-
-                    if (txt2.compare("STAFF") == 0)
-                    {
-                        QString stfdir = (txt1.compare("UP") == 0) ? "above" : "below";
-                        actionName = QString("select-staff-%1").arg(stfdir);
-                    }
-                    else
-                    {
-                        actionName = QString("%1-%2").arg(txt1.toLower(), txt2.toLower());
-                    }
-
-                    _currentScore->startCmd();
-                    _scoreView->cmd(getAction(actionName.toStdString().data()));
-                    _currentScore->endCmd();
-                }
             }
 
             else if (msg.startsWith("SELECT:"))
@@ -837,9 +706,6 @@ void ODLADriver::onIncomingData()
                             ArpeggioType at = ArpeggioType::BRACKET;
 
                             if (txt.compare("WAVE") == 0)               { at = ArpeggioType::NORMAL; }
-                            else if (txt.compare("WAVE_UP") == 0)       { at = ArpeggioType::UP; }
-                            else if (txt.compare("WAVE_DOWN") == 0)     { at = ArpeggioType::DOWN; }
-                            else if (txt.compare("SQUARE") == 0)        { at = ArpeggioType::BRACKET; }
                             else if (txt.compare("ARROW_UP") == 0)      { at = ArpeggioType::UP_STRAIGHT; }
                             else if (txt.compare("ARROW_DOWN") == 0)    { at = ArpeggioType::DOWN_STRAIGHT; }
                             else { parsed = false; }
@@ -892,49 +758,6 @@ void ODLADriver::onIncomingData()
                         }
                     }
                  }
-            }
-
-            else if (msg.startsWith("CHORDLINE"))
-            {
-                if(!_currentScore->inputState().cr())
-                    break;
-
-                QStringList parts = msg.split(" ");
-
-                if (parts.length() > 1)
-                {
-                    bool parsed = true;
-                    QString txt = parts.at(1);
-                    ChordLineType ct = ChordLineType::FALL;
-                    bool straight = false;
-
-                    if (txt.compare("FALL") == 0)           { ct = ChordLineType::FALL; }
-                    else if (txt.compare("DOIT") == 0)      { ct = ChordLineType::DOIT; }
-                    else if (txt.compare("PLOP") == 0)      { ct = ChordLineType::PLOP; }
-                    else if (txt.compare("SCOOP") == 0)     { ct = ChordLineType::SCOOP; }
-                    else if (txt.compare("OUT_DOWN") == 0)  { ct = ChordLineType::FALL; straight = true; }
-                    else if (txt.compare("OUT_UP") == 0)    { ct = ChordLineType::DOIT; straight = true; }
-                    else if (txt.compare("IN_ABOVE") == 0)  { ct = ChordLineType::PLOP; straight = true; }
-                    else if (txt.compare("IN_BELOW") == 0)  { ct = ChordLineType::SCOOP; straight = true; }
-                    else { parsed = false; }
-
-                    if (parsed)
-                    {
-                        Element* el = _currentScore->selection().element();
-                        if (el != nullptr && el->isNote())
-                        {
-                            ChordLine* chline = new ChordLine(_currentScore);
-                            chline->setChordLineType(ct);
-                            chline->setStraight(straight);
-                            chline->setTrack(_currentScore->inputState().track() / VOICES);
-                            chline->setParent(_currentScore->inputState().cr());
-
-                            _currentScore->startCmd();
-                            _currentScore->undoAddElement(chline);
-                            _currentScore->endCmd();
-                        }
-                    }
-                }
             }
 
             else if (msg.startsWith("BREATH"))
@@ -1117,7 +940,6 @@ void ODLADriver::onIncomingData()
                 else if (txt.compare("BROKEN") == 0)        { bt = BarLineType::BROKEN; }
                 else if (txt.compare("DOTTED") == 0)        { bt = BarLineType::DOTTED; }
                 else if (txt.compare("TICK_2_SPAN") == 0)   { bt = BarLineType::NORMAL; from = BARLINE_SPAN_TICK2_FROM; to = BARLINE_SPAN_TICK2_TO; }
-                else if (txt.compare("SHORT_2_SPAN") == 0)  { bt = BarLineType::NORMAL; from = BARLINE_SPAN_SHORT2_FROM; to = BARLINE_SPAN_SHORT2_TO; }
 
                 // simulate drag&drop on selected measures
                 Selection sel = _currentScore->selection();
@@ -1326,43 +1148,6 @@ void ODLADriver::onIncomingData()
                 _currentScore->endCmd();
             }
 
-            else if (msg.startsWith("LINE"))
-            {
-                bool parsed = true;
-                QString txt = msg.split(" ").at(1);
-                bool slur = false;
-                QString beginText;
-                HookType endHook = HookType::NONE;
-                bool diagonal = false;
-
-                if (txt.compare("SLUR") == 0)      { slur = true; }
-                else if (txt.compare("VII") == 0)  { beginText = "VII"; endHook = HookType::HOOK_90; }
-                else if (txt.compare("LINE") == 0) { diagonal = true; }
-                else { parsed = false; }
-
-                if (parsed)
-                {
-                    Spanner* spanner = nullptr;
-                    if (slur)
-                    {
-                        Slur *slur = static_cast<Slur*>(Element::create(ElementType::SLUR, _currentScore));
-                        spanner = slur;
-                    }
-                    else
-                    {
-                        TextLine* line = static_cast<TextLine*>(Element::create(ElementType::TEXTLINE, _currentScore));
-                        line->setBeginText(beginText);
-                        line->setEndHookType(endHook);
-                        line->setDiagonal(diagonal);
-                        line->setLen(_currentScore->spatium() * 8);
-                        spanner = line;
-                    }
-
-                    if (!addSpannerToCurrentSelection(spanner))
-                        delete spanner;
-                }
-            }
-
             else if (msg.startsWith("TRILL"))
             {
                 bool parsed = true;
@@ -1423,7 +1208,6 @@ void ODLADriver::onIncomingData()
 
                 if (txt.compare("PEDAL_END90") == 0)      { endText.clear(); beginHook = HookType::NONE; }
                 else if (txt.compare("PEDAL_ENDUP") == 0) { endText = "<sym>keyboardPedalUp</sym>"; visibleLine = false; }
-                else if (txt.compare("PEDAL_9090") == 0)  { beginText.clear(); endText.clear(); continueText.clear(); }
                 else { parsed = false; }
 
                 if (parsed)
@@ -1601,79 +1385,6 @@ void ODLADriver::onIncomingData()
                 }
             }
 
-            else if (msg.startsWith("VOICE"))
-            {
-                /* HOW TO ADD AN INSTRUMENT BY NAME :(
-                InstrumentTemplate* it = searchTemplate("flute");
-
-                Part* part = nullptr;
-                if (it != nullptr)
-                {
-                    part = new Part(_currentScore);
-                    part->initFromInstrTemplate(it);
-                }
-
-                if (part != nullptr)
-                {
-                    int staffIdx = _currentScore->nstaves() + 1;
-                    for (int i=0; i<it->nstaves(); i++)
-                    {
-                        Staff* staff = new Staff(_currentScore);
-                        staff->setPart(part);
-
-                        staff->init(it, it->staffTypePreset, i);
-                        staff->setDefaultClefType(it->clefType(i));
-
-                        part->staves()->push_back(staff);
-                        _currentScore->staves().insert(staffIdx + i, staff);
-                    }
-
-                    _currentScore->insertPart(part, staffIdx);
-                    int sidx = _currentScore->staffIdx(part);
-                    int eidx = sidx + part->nstaves();
-                    for (Measure* m = _currentScore->firstMeasure(); m; m = m->nextMeasure())
-                    {
-                        m->cmdAddStaves(sidx, eidx, true);
-                    }
-
-                    // check bar lines
-                    for (int staffIdx = 0; staffIdx < _currentScore->nstaves();)
-                    {
-                        Staff* staff = _currentScore->staff(staffIdx);
-                        int barLineSpan = staff->barLineSpan();
-                        if (barLineSpan == 0)
-                            staff->setBarLineSpan(1);
-                        int nstaffIdx = staffIdx + barLineSpan;
-                        for (int idx = staffIdx+1; idx < nstaffIdx; ++idx)
-                        {
-                            Staff* tStaff = _currentScore->staff(idx);
-                            if (tStaff)
-                                  tStaff->setBarLineSpan(0);
-                        }
-
-                        staffIdx = nstaffIdx;
-                    }
-
-                    _currentScore->setLayoutAll(true);
-                    _currentScore->endCmd();
-                    _currentScore->rebuildMidiMapping();
-                    seq->initInstruments();
-                }
-                */
-
-                QString txt = msg.split(" ").at(1);
-                int voice = txt.toInt() - 1; // voice idx start from 0
-
-                if (_scoreView)
-                    _scoreView->changeVoice(voice);
-            }
-
-            else if (msg.startsWith("PLAY") || msg.startsWith("STOP"))
-            {
-                if (_scoreView)
-                    _scoreView->cmd(getAction("play"));
-            }
-
             else if (msg.startsWith("METRONOME"))
             {
                 QString txt = msg.split(" ").at(1);
@@ -1707,35 +1418,6 @@ void ODLADriver::onIncomingData()
                     _scoreView->cmdTuplet(numerator);
                     _currentScore->endCmd();
                 }
-//                else
-//                {
-//                    // custom tuplet NOT WORKING
-//                    _currentScore->expandVoice();
-//                    _currentScore->changeCRlen(_currentScore->inputState().cr(), _currentScore->inputState().duration());
-//                    ChordRest* cr = _currentScore->inputState().cr();
-
-//                    if (cr != nullptr)
-//                    {
-//                        Measure* measure = cr->measure();
-//                        Tuplet* tuplet = new Tuplet(_currentScore);
-//                        tuplet->setTrack(cr->track());
-//                        tuplet->setTick(cr->tick());
-//                        tuplet->setRatio(Fraction(numerator, denominator));
-
-//                        Fraction f1(cr->ticks());
-//                        tuplet->setTicks(f1);
-//                        Fraction f = f1 * Fraction(1, tuplet->ratio().denominator());
-//                        f.reduce();
-
-//                        tuplet->setBaseLen(f);
-//                        tuplet->setParent(measure);
-
-//                        _currentScore->startCmd();
-//                        _scoreView->cmdCreateTuplet(cr, tuplet);
-//                        _currentScore->endCmd();
-//                        _scoreView->moveCursor();
-//                    }
-//                }
             }
 
             // put note
@@ -1776,12 +1458,10 @@ void ODLADriver::onIncomingData()
                                     TimeSig* ts = new TimeSig(_currentScore);
                                     ts->setSig(Fraction(beats, beatUnit), tst);
 
-                                    //Selection currentSelection = _currentScore->selection();
                                     _currentScore->startCmd();
                                     _currentScore->cmdAddTimeSig(measure, _currentScore->inputState().track() / VOICES, ts, false);
                                     _currentScore->endCmd();
 
-                                    //_currentScore->setSelection(currentSelection);
                                 }
                             }
                         }
@@ -1808,9 +1488,8 @@ void ODLADriver::onIncomingData()
                     ks->setKey(k);
                     ks->setTrack(_currentScore->inputState().track());
 
-                    //int currentStaff = _currentScore->inputState().track() / VOICES;
                     _currentScore->startCmd();
-                    for (Staff* staff : _currentScore->staves()) //_currentScore->staff(currentStaff)
+                    for (Staff* staff : _currentScore->staves())
                         _currentScore->undoChangeKeySig(staff, _currentScore->inputState().tick(), ks->keySigEvent());
                     _currentScore->endCmd();
                 }
@@ -1976,35 +1655,6 @@ void ODLADriver::onIncomingData()
                         _currentScore->endCmd();
                     }
                 }
-            }
-
-            // transposition
-            else if (msg.startsWith("UPDIATONIC"))
-            {
-                _currentScore->startCmd();
-                _currentScore->upDown(true, UpDownMode::DIATONIC);
-                _currentScore->endCmd();
-            }
-
-            else if (msg.startsWith("DOWNDIATONIC"))
-            {
-                _currentScore->startCmd();
-                _currentScore->upDown(false, UpDownMode::DIATONIC);
-                _currentScore->endCmd();
-            }
-
-            else if (msg.startsWith("UPOCTAVE"))
-            {
-                _currentScore->startCmd();
-                _currentScore->upDown(true, UpDownMode::OCTAVE);
-                _currentScore->endCmd();
-            }
-
-            else if (msg.startsWith("DOWNOCTAVE"))
-            {
-                _currentScore->startCmd();
-                _currentScore->upDown(false, UpDownMode::OCTAVE);
-                _currentScore->endCmd();
             }
         }
     }
