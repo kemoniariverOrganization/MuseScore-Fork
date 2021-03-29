@@ -22,3 +22,17 @@ set(TARGET tst_workspaces)
 set(MTEST_LINK_MSCOREAPP TRUE)
 
 include(${PROJECT_SOURCE_DIR}/mtest/cmake.inc)
+
+if (MSVC OR MINGW)
+      get_target_property(
+            MTEST_INSTALL_DESTINATION_DIR
+            ${TARGET}
+            MTEST_INSTALL_DESTINATION_DIR
+            )
+      install(FILES
+            "${PROJECT_BINARY_DIR}/share/workspaces/Basic.workspace"
+            "${PROJECT_BINARY_DIR}/share/workspaces/Advanced.workspace"
+            DESTINATION "${MTEST_INSTALL_DESTINATION_DIR}/workspaces"
+            PERMISSIONS OWNER_READ GROUP_READ WORLD_READ
+            )
+endif (MSVC OR MINGW)

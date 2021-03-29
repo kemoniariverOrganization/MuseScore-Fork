@@ -155,7 +155,7 @@ void KeySig::layout()
 
 
       // Don't repeat naturals if shown in courtesy
-      if (measure() && measure()->system() && measure() == measure()->system()->firstMeasure()
+      if (measure() && measure()->system() && measure()->isFirstInSystem()
           && prevMeasure && prevMeasure->findSegment(SegmentType::KeySigAnnounce, tick())
           && !segment()->isKeySigAnnounceType())
             naturalsOn = false;
@@ -268,6 +268,10 @@ void KeySig::layout()
                         }
                   }
             }
+
+      // Follow stepOffset
+      if (staffType())
+            rypos() = staffType()->stepOffset() * 0.5 * _spatium;
 
       // compute bbox
       for (KeySym& ks : _sig.keySymbols()) {
@@ -398,6 +402,8 @@ void KeySig::write(XmlWriter& xml) const
             }
       if (!_showCourtesy)
             xml.tag("showCourtesySig", _showCourtesy);
+      if (forInstrumentChange())
+            xml.tag("forInstrumentChange", true);
       xml.etag();
       }
 
@@ -476,6 +482,8 @@ void KeySig::read(XmlReader& e)
                   }
             else if (tag == "subtype")
                   subtype = e.readInt();
+            else if (tag == "forInstrumentChange")
+                  setForInstrumentChange(e.readBool());
             else if (!Element::readProperties(e))
                   e.unknown();
             }
@@ -546,6 +554,8 @@ bool KeySig::operator==(const KeySig& k) const
 bool KeySig::isChange() const
       {
       if (!staff())
+            return false;
+      if (!segment() || segment()->segmentType() != SegmentType::KeySig)
             return false;
       Fraction keyTick = tick();
       return staff()->currentKeyTick(keyTick) == keyTick;
@@ -674,18 +684,18 @@ QString KeySig::accessibleInfo() const
       {
       QString keySigType;
       if (isAtonal())
-            return QString("%1: %2").arg(Element::accessibleInfo()).arg(qApp->translate("MuseScore", keyNames[15]));
+            return QString("%1: %2").arg(Element::accessibleInfo(), qApp->translate("MuseScore", keyNames[15]));
       else if (isCustom())
             return QObject::tr("%1: Custom").arg(Element::accessibleInfo());
 
       if (key() == Key::C)
-            return QString("%1: %2").arg(Element::accessibleInfo()).arg(qApp->translate("MuseScore", keyNames[14]));
+            return QString("%1: %2").arg(Element::accessibleInfo(), qApp->translate("MuseScore", keyNames[14]));
       int keyInt = static_cast<int>(key());
       if (keyInt < 0)
             keySigType = qApp->translate("MuseScore", keyNames[(7 + keyInt) * 2 + 1]);
       else
             keySigType = qApp->translate("MuseScore", keyNames[(keyInt - 1) * 2]);
-      return QString("%1: %2").arg(Element::accessibleInfo()).arg(keySigType);
+      return QString("%1: %2").arg(Element::accessibleInfo(), keySigType);
       }
 
 }

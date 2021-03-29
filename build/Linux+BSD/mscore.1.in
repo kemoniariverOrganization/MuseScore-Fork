@@ -1,9 +1,9 @@
 .\" New manual page for MuseScore 3
-.\" Copyright (c) 2018, 2019
+.\" Copyright (c) 2018, 2019, 2020, 2021
 .\"	mirabilos <m@mirbsd.org>
 .\" Published under the same terms as MuseScore itself.
 .\"-
-.Dd June 18, 2019
+.Dd Janurary 12, 2021
 .Dt @MAN_MSCORE_UPPER@ 1
 .Os MuseScore
 .Sh NAME@Variables_substituted_by_CMAKE_on_installation@
@@ -46,9 +46,14 @@
 .Op Fl \-raw\-diff
 .Op Fl \-revert\-settings
 .Op Fl \-run\-test\-script
+.Op Fl \-save\-online
 .Op Fl \-score\-media
+.Op Fl \-highlight\-config
 .Op Fl \-score\-mp3
+.Op Fl \-score\-parts
 .Op Fl \-score\-parts\-pdf
+.Op Fl \-score\-transpose
+.Op Fl \-source\-update
 .Op Fl \-template\-mode
 .Op Fl \-test\-mode
 .Op Fl \-version
@@ -111,6 +116,11 @@ GNU General Public Licence (GPLv2).
 @MAN_PORTABLE@.Ar prefix
 @MAN_PORTABLE@to install into a custom location.
 @MAN_PORTABLE@Installation is not required to run the program.
+@MAN_PORTABLE@.It Cm update , Cm upgrade Oo Fl i Oc Op Ar prefix
+@MAN_PORTABLE@Updates MuseScore to the latest version. This uses your internet
+@MAN_PORTABLE@connection to check for an update and download it if one is
+@MAN_PORTABLE@available. A delta update mechanism is used to minimise the
+@MAN_PORTABLE@amount of data that is downloaded.
 @MAN_PORTABLE@.It Cm remove , Cm uninstall Op Ar prefix
 @MAN_PORTABLE@Removes icons and resources, and asks whether you would
 @MAN_PORTABLE@like to remove the program as well.
@@ -206,7 +216,7 @@ workspaces, extensions, translations, etc.; compare with
 .It Fl r | Fl \-image\-resolution Ar DPI
 Set image resolution for conversion to PNG files.
 .Pp
-Default: 300 DPI (actually, the value of
+Default: 360 DPI (actually, the value of
 .Dq Resolution
 of the PNG option group in the Export tab of the preferences)
 .It Fl S | Fl \-style Ar style
@@ -239,20 +249,35 @@ Print a conditioned diff between the given scores
 Display the full name, version and git revision of the application
 without starting the graphical user interface
 .It Fl \-no\-fallback\-font
-Don't use Bravura as fallback musical font
+Don't use a fallback musical font
 .It Fl \-raw\-diff
 Print a raw diff between the given scores
 .It Fl \-run\-test\-script
 Run script tests listed in the command line arguments
+.It Fl \-save\-online
+Upload score(s) to its source URL. There must already be an online score at
+that URL, and the user must be signed-in to the account it belongs to. The
+online score will be replaced with the uploaded file, but the title and
+description of the online score's webpage will not change.
 .It Fl \-score\-media
 Export all media (except MP3) for a given score
 as a single JSON document to stdout
+.It Fl \-highlight\-config
+Set highlight to svg, generated from a given score
 .It Fl \-score\-mp3
-Generates an MP3 for the given score and exports it
+Generate an MP3 for the given score and export it
 as a single JSON document to stdout
+.It Fl \-score\-parts
+Generate parts data for the given score and save them
+to separate mscz files
 .It Fl \-score\-parts\-pdf
-Generates parts data for the given score and exports it
+Generate parts data for the given score and export it
 as a single JSON document to stdout
+.It Fl \-score\-transpose
+Transpose the given score and export the data to
+a single JSON file, print it to stdout
+.It Fl \-source\-update
+Update the source in the given score
 .It Fl \-template\-mode
 Save files in template mode (e.g. without page sizes)
 .El
@@ -319,6 +344,8 @@ Free Lossless Audio Codec (compressed audio)
 .It Li metajson
 various score metadata (JSON)
 .It Li mid
+standard MIDI file
+.It Li midi
 standard MIDI file
 .It Li mlog
 internal file sanity check log (JSON)
@@ -505,13 +532,13 @@ SF3 (SoundFont with OGG Vorbis-compressed samples)
 .It
 SFZ (Sforzato soundfont)
 .It
-SMuFL (Standard Music Font Layout 1.20)
+SMuFL (Standard Music Font Layout 1.30)
 .El
 .Sh HISTORY
 MuseScore was split off the MusE sequencer in 2002 and has since
 become the foremost Open Source notation software.
 .Sh AUTHORS
-MuseScore is developed by Werner Schweer and others.
+MuseScore is developed by MuseScore BVBA and others.
 .Pp
 This manual page was written by
 .An mirabilos Aq tg@debian.org .

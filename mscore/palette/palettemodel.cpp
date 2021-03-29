@@ -253,8 +253,10 @@ QVariant PaletteTreeModel::data(const QModelIndex& index, int role) const
       if (const PalettePanel* pp = findPalettePanel(index)) {
             switch (role) {
                   case Qt::DisplayRole:
-                  case Qt::AccessibleTextRole:
+                  case Qt::ToolTipRole:
                         return pp->translatedName();
+                  case Qt::AccessibleTextRole:
+                        return QString("%1 palette").arg(pp->translatedName());
                   case VisibleRole:
                         return pp->visible();
                   case CustomRole:
@@ -262,7 +264,7 @@ QVariant PaletteTreeModel::data(const QModelIndex& index, int role) const
                   case EditableRole:
                         return pp->editable();
                   case GridSizeRole:
-                        return pp->gridSize() * Palette::guiMag();
+                        return pp->scaledGridSize();
                   case DrawGridRole:
                         return pp->drawGrid();
                   case PaletteExpandedRole:
@@ -278,7 +280,10 @@ QVariant PaletteTreeModel::data(const QModelIndex& index, int role) const
 
       if (PaletteCellConstPtr cell = findCell(index)) {
             switch (role) {
-                  case Qt::DisplayRole: // TODO don't display cell names in palettes
+                  case Qt::DisplayRole:
+                        return QVariant(); // Don't show element names in
+                        // item views (i.e. just show icons). If you need
+                        // to know the name, use the ToolTip instead.
                   case Qt::ToolTipRole:
                         return cell->translatedName();
                   case Qt::AccessibleTextRole: {
@@ -1013,6 +1018,16 @@ bool FilterPaletteTreeModel::filterAcceptsRow(int sourceRow, const QModelIndex& 
       if (!cell) // a palette panel or just an unrelated model
             return true;
       return cellFilter->accept(*cell);
+      }
+
+//---------------------------------------------------------
+//   PaletteCellFilterProxyModel::PaletteCellFilterProxyModel
+//---------------------------------------------------------
+
+PaletteCellFilterProxyModel::PaletteCellFilterProxyModel(QObject* parent)
+      : QSortFilterProxyModel(parent)
+      {
+      setFilterRole(Qt::ToolTipRole); // palette cells have no data for DisplayRole
       }
 
 //---------------------------------------------------------

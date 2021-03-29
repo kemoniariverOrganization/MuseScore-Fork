@@ -135,7 +135,7 @@ Segment* Score::tick2segment(const Fraction& t, bool first, SegmentType st, bool
       if (useMMrest) {
             m = tick2measureMM(tick);
             // When mmRest force tick to the first segment of mmRest.
-            if (m && m->isMMRest())
+            if (m && m->isMMRest() && tick != m->endTick())
                   tick = m->tick();
             }
       else
@@ -178,9 +178,9 @@ Segment* Score::tick2segment(const Fraction& tick, bool first) const
 /// the first segment *before* this tick position
 //---------------------------------------------------------
 
-Segment* Score::tick2leftSegment(const Fraction& tick) const
+Segment* Score::tick2leftSegment(const Fraction& tick, bool useMMrest) const
       {
-      Measure* m = tick2measure(tick);
+      Measure* m = useMMrest ? tick2measureMM(tick) : tick2measure(tick);
       if (m == 0) {
             qDebug("tick2leftSegment(): not found tick %d", tick.ticks());
             return 0;
@@ -203,9 +203,9 @@ Segment* Score::tick2leftSegment(const Fraction& tick) const
 /// the first segment *after* this tick position
 //---------------------------------------------------------
 
-Segment* Score::tick2rightSegment(const Fraction& tick) const
+Segment* Score::tick2rightSegment(const Fraction& tick, bool useMMrest) const
       {
-      Measure* m = tick2measure(tick);
+      Measure* m = useMMrest ? tick2measureMM(tick) : tick2measure(tick);
       if (m == 0) {
             qDebug("tick2nearestSegment(): not found tick %d", tick.ticks());
             return 0;
@@ -490,7 +490,7 @@ QString pitch2string(int v)
             return QString("----");
       int octave = (v / 12) - 1;
       QString o;
-      o.sprintf("%d", octave);
+      o = QString::asprintf("%d", octave);
       int i = v % 12;
       return qApp->translate("utils", octave < 0 ? valu[i] : vall[i]) + o;
       }
@@ -771,6 +771,9 @@ int diatonicUpDown(Key k, int pitch, int steps)
 
 Note* searchTieNote(Note* note)
       {
+      if (!note)
+            return nullptr;
+
       Note* note2  = 0;
       Chord* chord = note->chord();
       Segment* seg = chord->segment();
@@ -783,7 +786,7 @@ Note* searchTieNote(Note* note)
 
             // try to tie to next grace note
 
-            int index = chord->graceIndex();
+            int index = note->chord()->graceIndex();
             for (Chord* c : chord->graceNotes()) {
                   if (c->graceIndex() == index + 1) {
                         note2 = c->findNote(note->pitch());
@@ -1017,6 +1020,8 @@ std::vector<SymId> toTimeSigString(const QString& s)
             { 40,    SymId::timeSigParensLeftSmall  },  // '('
             { 41,    SymId::timeSigParensRightSmall },  // ')'
             { 162,   SymId::timeSigCutCommon        },  // '¢'
+            { 189,   SymId::timeSigFractionHalf     },
+            { 188,   SymId::timeSigFractionQuarter  },
             { 59664, SymId::mensuralProlation1      },
             { 79,    SymId::mensuralProlation2      },  // 'O'
             { 59665, SymId::mensuralProlation2      },

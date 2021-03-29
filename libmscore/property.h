@@ -16,7 +16,6 @@
 namespace Ms {
 
 class XmlReader;
-enum class Sid : int;
 
 //------------------------------------------------------------------------
 //    M_PROPERTY (type, getter_name, setter_name)
@@ -115,8 +114,8 @@ enum class Pid {
       GROW_LEFT,
       GROW_RIGHT,
       BOX_HEIGHT,
-
       BOX_WIDTH,
+      BOX_AUTOSIZE,
       TOP_GAP,
       BOTTOM_GAP,
       LEFT_MARGIN,
@@ -169,9 +168,12 @@ enum class Pid {
       VELO_CHANGE_SPEED,
       DYNAMIC_TYPE,
       DYNAMIC_RANGE,
-      SINGLE_NOTE_DYNAMICS,
 //100
-      PLACEMENT,
+      SINGLE_NOTE_DYNAMICS,
+      CHANGE_METHOD,
+      PLACEMENT,              // Goes with P_TYPE::PLACEMENT
+      HPLACEMENT,             // Goes with P_TYPE::HPLACEMENT
+      MMREST_RANGE_BRACKET_TYPE, // The brackets used arond the measure numbers indicating the range covered by the mmrest
       VELOCITY,
       JUMP_TO,
       PLAY_UNTIL,
@@ -184,14 +186,18 @@ enum class Pid {
       REPEAT_START,
       REPEAT_JUMP,
       MEASURE_NUMBER_MODE,
+
       GLISS_TYPE,
       GLISS_TEXT,
-
       GLISS_SHOW_TEXT,
+      GLISS_STYLE,
+      GLISS_EASEIN,
+      GLISS_EASEOUT,
       DIAGONAL,
       GROUPS,
       LINE_STYLE,
       LINE_WIDTH,
+      LINE_WIDTH_SPATIUM,
       LASSO_POS,
       LASSO_SIZE,
       TIME_STRETCH,
@@ -206,6 +212,7 @@ enum class Pid {
       SPANNER_TRACK2,
       OFFSET2,
       BREAK_MMR,
+      MMREST_NUMBER_POS,
       REPEAT_COUNT,
 
       USER_STRETCH,
@@ -230,12 +237,16 @@ enum class Pid {
       ROLE,
       TRACK,
 
-      GLISSANDO_STYLE,
       FRET_STRINGS,
       FRET_FRETS,
       FRET_NUT,
       FRET_OFFSET,
       FRET_NUM_POS,
+      ORIENTATION,
+
+      HARMONY_VOICE_LITERAL,
+      HARMONY_VOICING,
+      HARMONY_DURATION,
 
       SYSTEM_BRACKET,
       GAP,
@@ -257,8 +268,10 @@ enum class Pid {
       STAFF_SHOW_BARLINES,
       STAFF_SHOW_LEDGERLINES,
       STAFF_STEMLESS,
+      STAFF_INVISIBLE,
+      STAFF_COLOR,
 
-      STAFF_NOTEHEAD_SCHEME,
+      HEAD_SCHEME,
       STAFF_GEN_CLEF,
       STAFF_GEN_TIMESIG,
       STAFF_GEN_KEYSIG,
@@ -271,18 +284,20 @@ enum class Pid {
 
       BRACKET_COLUMN,
       INAME_LAYOUT_POSITION,
+//200
       SUB_STYLE,
 
       FONT_FACE,
       FONT_SIZE,
       FONT_STYLE,
+      TEXT_LINE_SPACING,
 
       FRAME_TYPE,
       FRAME_WIDTH,
       FRAME_PADDING,
       FRAME_ROUND,
       FRAME_FG_COLOR,
-//200
+
       FRAME_BG_COLOR,
       SIZE_SPATIUM_DEPENDENT,
       ALIGN,
@@ -338,13 +353,16 @@ enum class Pid {
       CHORD_LINE_TYPE,
       CHORD_LINE_STRAIGHT,
       TREMOLO_TYPE,
-      TREMOLO_PLACEMENT,
+      TREMOLO_STYLE,
       HARMONY_TYPE,
 
       START_WITH_LONG_NAMES,
       START_WITH_MEASURE_ONE,
+      FIRST_SYSTEM_INDENTATION,
 
       PATH, // for ChordLine to make its shape changes undoable
+
+      PREFER_SHARP_FLAT,
 
       END
       };
@@ -372,13 +390,14 @@ enum class P_TYPE : char {
       LAYOUT_BREAK,
       VALUE_TYPE,
       BEAM_MODE,
-      PLACEMENT,
+      PLACEMENT,      // ABOVE or BELOW
+      HPLACEMENT,     // LEFT, CENTER or RIGHT
       TEXT_PLACE,
       TEMPO,
       GROUPS,
       SYMID,
       INT_LIST,
-      GLISSANDO_STYLE,
+      GLISS_STYLE,
       BARLINE_TYPE,
       HEAD_TYPE,        // enum class Notehead::Type
       HEAD_GROUP,       // enum class Notehead::Group
@@ -386,13 +405,15 @@ enum class P_TYPE : char {
       FONT,
       SUB_STYLE,
       ALIGN,
-      CHANGE_METHOD,    // enum class VeloChangeMethod (for single notedynamics)
+      CHANGE_METHOD,    // enum class VeloChangeMethod (for single note dynamics)
       CHANGE_SPEED,     // enum class Dynamic::Speed
       CLEF_TYPE,        // enum class ClefType
       DYNAMIC_TYPE,     // enum class Dynamic::Type
       KEYMODE,          // enum class KeyMode
+      ORIENTATION,      // enum class Orientation
 
       PATH,             // QPainterPath
+      HEAD_SCHEME,      // enum class NoteHead::Scheme
       };
 
 extern QVariant readProperty(Pid type, XmlReader& e);

@@ -39,13 +39,12 @@ if (NOT MSVC)
 endif (NOT MSVC)
 include (${PROJECT_SOURCE_DIR}/build/CopyFilesMacros.cmake)
 
-SET_SOURCE_FILES_PROPERTIES(revision.h PROPERTIES GENERATED TRUE)
-
 include_directories(
       ${CMAKE_CURRENT_BINARY_DIR}
       ${PROJECT_SOURCE_DIR}
       ${PROJECT_SOURCE_DIR}/thirdparty
       ${PROJECT_SOURCE_DIR}/global
+      ${PROJECT_SOURCE_DIR}/importexport
       ${QTSINGLEAPPLICATION_INCLUDE_DIRS}
       )
 
@@ -54,41 +53,27 @@ if (BUILD_TELEMETRY_MODULE)
 endif (BUILD_TELEMETRY_MODULE)
 
 if (SCRIPT_INTERFACE)
-      set (SCRIPT_FILES
-            plugin/pluginCreator.h plugin/pluginManager.h plugin/qmledit.h
-            plugin/qmlplugin.h plugin/qmlpluginengine.h
-            plugin/qmliconview.h
-            plugin/api/qmlpluginapi.h plugin/api/cursor.h plugin/api/scoreelement.h plugin/api/elements.h
-            plugin/api/part.h
-            plugin/api/score.h
-            plugin/api/fraction.h
-            plugin/api/excerpt.h
-            plugin/api/util.h
-            plugin/api/selection.h
-            plugin/api/tie.h
-            plugin/api/playevent.h
-
-            plugin/api/enums.cpp
-            plugin/mscorePlugins.cpp plugin/pluginCreator.cpp plugin/pluginManager.cpp plugin/qmledit.cpp
-            plugin/qmlplugin.cpp plugin/qmlpluginengine.cpp
-            plugin/qmliconview.cpp
-            plugin/api/qmlpluginapi.cpp plugin/api/cursor.cpp plugin/api/scoreelement.cpp plugin/api/elements.cpp
-            plugin/api/score.cpp
-            plugin/api/excerpt.cpp
-            plugin/api/util.cpp
-            plugin/api/selection.cpp
-            plugin/api/tie.cpp
-            plugin/api/playevent.cpp
-            )
-
-      set (SCRIPT_UI
-            plugin/pluginCreator.ui plugin/pluginManager.ui
-            )
+    include(${CMAKE_CURRENT_LIST_DIR}/plugin/plugin.cmake)
 endif (SCRIPT_INTERFACE)
 
+include(${CMAKE_CURRENT_LIST_DIR}/mixer/mixer.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/pianoroll/pianoroll.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/cloud/cloud.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/debugger/debugger.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/inspector/inspector.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/importmidi_ui/importmidi_ui.cmake)
+
 QT5_WRAP_UI (ui_headers
+      ${MSCORE_MIXER_UI}
+      ${PIANOROLL_UI}
+      ${CLOUD_UI}
+      ${DEBUGGER_UI}
+      ${INSPECTOR_UI}
+      ${IMPORTMIDIUI_UI}
+      ${PLUGIN_UI}
+
       insertmeasuresdialog.ui editinstrument.ui editstyle.ui instrdialog.ui instrwidget.ui
-      measuresdialog.ui pagesettings.ui mixer.ui mixertrackchannel.ui mixertrackpart.ui mixerdetails.ui parteditbase.ui
+      measuresdialog.ui pagesettings.ui parteditbase.ui
       playpanel.ui prefsdialog.ui measureproperties.ui
       textpalette.ui  timedialog.ui symboldialog.ui  shortcutcapturedialog.ui  editdrumset.ui
       editstaff.ui timesigproperties.ui
@@ -97,121 +82,17 @@ QT5_WRAP_UI (ui_headers
       articulation.ui metaedit.ui paletteProperties.ui paletteCellProperties.ui selectdialog.ui selectnotedialog.ui
       synthcontrol.ui splitstaff.ui keyedit.ui selectinstr.ui
       editstafftype.ui
-      editpitch.ui editstringdata.ui editraster.ui mediadialog.ui albummanager.ui layer.ui
+      editpitch.ui editstringdata.ui editraster.ui mediadialog.ui albummanager.ui layer.ui realizeharmonydialog.ui
       omrpanel.ui masterpalette.ui harmonyedit.ui pathlistdialog.ui
       note_groups.ui resourceManager.ui stafftypetemplates.ui
       startcenter.ui scorePreview.ui scoreBrowser.ui templateBrowser.ui
-      logindialog.ui uploadscoredialog.ui breaksdialog.ui
+      breaksdialog.ui
+      exportdialog.ui
       toolbarEditor.ui workspacedialog.ui
-
-      importmidi/importmidi_panel.ui
 
       palette/createPalette.ui
       scorecmp/scorecmp_tool.ui
       script/script_recorder.ui
-
-      debugger/barline.ui
-      debugger/harmony.ui
-      debugger/box.ui
-      debugger/keysig.ui
-      debugger/rest.ui
-      debugger/articulationbase.ui
-      debugger/accidental.ui
-      debugger/clef.ui
-      debugger/slursegment.ui
-      debugger/tiesegment.ui
-      debugger/spanner.ui
-      debugger/tremolo.ui
-      debugger/beam.ui
-      debugger/lyrics.ui
-      debugger/linesegment.ui
-      debugger/textline.ui
-      debugger/line.ui
-      debugger/slurtie.ui
-      debugger/tie.ui
-      debugger/tuplet.ui
-      debugger/dynamic.ui
-      debugger/hairpin.ui
-      debugger/chord.ui
-      debugger/chordrest.ui
-      debugger/segment.ui
-      debugger/measure.ui
-      debugger/element.ui
-      debugger/debugger.ui
-      debugger/note.ui
-      debugger/page.ui
-      debugger/text.ui
-      debugger/stem.ui
-      debugger/system.ui
-      debugger/timesig.ui
-      debugger/bracket.ui
-
-      inspector/inspector_element.ui
-      inspector/inspector_vbox.ui
-      inspector/inspector_tbox.ui
-      inspector/inspector_articulation.ui
-      inspector/inspector_spacer.ui
-      inspector/inspector_hbox.ui
-      inspector/inspector_segment.ui
-      inspector/inspector_beam.ui
-      inspector/inspector_note.ui
-      inspector/inspector_notedot.ui
-      inspector/inspector_rest.ui
-      inspector/inspector_chord.ui
-      inspector/inspector_group_element.ui
-      inspector/inspector_image.ui
-      inspector/inspector_harmony.ui
-      inspector/inspector_lasso.ui
-      inspector/inspector_volta.ui
-      inspector/inspector_ottava.ui
-      inspector/inspector_trill.ui
-      inspector/inspector_vibrato.ui
-      inspector/inspector_hairpin.ui
-      inspector/inspector_jump.ui
-      inspector/inspector_marker.ui
-      inspector/inspector_glissando.ui
-      inspector/inspector_clef.ui
-      inspector/inspector_timesig.ui
-      inspector/inspector_keysig.ui
-      inspector/inspector_barline.ui
-      inspector/inspector_tuplet.ui
-      inspector/inspector_accidental.ui
-      inspector/inspector_tempotext.ui
-      inspector/inspector_dynamic.ui
-      inspector/inspector_instrchange.ui
-      inspector/inspector_lyric.ui
-      inspector/inspector_line.ui
-      inspector/inspector_textline.ui
-      inspector/inspector_letring.ui
-      inspector/inspector_palmmute.ui
-      inspector/inspector_pedal.ui
-      inspector/inspector_textlinebase.ui
-      inspector/inspector_slur.ui
-      inspector/inspector_text.ui
-      inspector/inspector_stafftext.ui
-      inspector/inspector_ambitus.ui
-      inspector/inspector_empty.ui
-      inspector/inspector_fret.ui
-      inspector/inspector_break.ui
-      inspector/inspector_sectionbreak.ui
-      inspector/inspector_stafftypechange.ui
-      inspector/inspector_bend.ui
-      inspector/inspector_arpeggio.ui
-      inspector/inspector_tremolo.ui
-      inspector/inspector_tremolobar.ui
-      inspector/inspector_caesura.ui
-      inspector/inspector_bracket.ui
-      inspector/inspector_iname.ui
-      inspector/inspector_fingering.ui
-      inspector/inspector_frametext.ui
-      inspector/inspector_fermata.ui
-      inspector/align_select.ui
-      inspector/font_style_select.ui
-      inspector/offset_select.ui
-      inspector/scale_select.ui
-      inspector/size_select.ui
-      inspector/inspector_stem.ui
-      ${SCRIPT_UI}
       )
 
 if (APPLE)
@@ -222,6 +103,8 @@ if (APPLE)
 else (APPLE)
       QT5_ADD_RESOURCES (qrc_files musescore.qrc
             qml.qrc # TODO: replace with qtquick_compiler_add_resources on Qt >= 5.11
+            musescorefonts-Leland.qrc
+            musescorefonts-Edwin.qrc
             musescorefonts-MScore.qrc
             musescorefonts-Gootville.qrc
             musescorefonts-Bravura.qrc
@@ -229,40 +112,9 @@ else (APPLE)
             musescorefonts-Campania.qrc
             musescorefonts-FreeSerif.qrc
             musescorefonts-Free.qrc
+            musescorefonts-Petaluma.qrc
             shortcut.qrc)
 endif (APPLE)
-
-
-set (AUDIO "")
-if ( NOT MINGW AND NOT MSVC )
-      if (USE_ALSA)
-            set (AUDIO ${AUDIO} alsa.cpp)
-      endif (USE_ALSA)
-endif ( NOT MINGW AND NOT MSVC )
-
-if (USE_PORTAUDIO)
-      set (AUDIO ${AUDIO} pa.cpp)
-endif (USE_PORTAUDIO)
-
-if (USE_PULSEAUDIO)
-      set (AUDIO ${AUDIO} pulseaudio.cpp)
-endif (USE_PULSEAUDIO)
-
-if (USE_PORTMIDI)
-      set (AUDIO ${AUDIO} pm.cpp)
-endif (USE_PORTMIDI)
-
-if (USE_LAME)
-      set (AUDIO ${AUDIO} exportmp3.cpp)
-endif (USE_LAME)
-
-if (USE_JACK)
-      set (AUDIO ${AUDIO} jackaudio.cpp jackweakapi.cpp)
-endif (USE_JACK)
-
-if (USE_ALSA OR USE_PORTMIDI)
-      set (AUDIO ${AUDIO} mididriver.cpp)
-endif (USE_ALSA OR USE_PORTMIDI)
 
 if (${CMAKE_SYSTEM} MATCHES "GNU-0.3")
       # Include some cmake support file
@@ -284,10 +136,19 @@ endif (OMR)
 
 if (APPLE)
       file(GLOB_RECURSE INCS "*.h")
-      set(COCOABRIDGE "macos/cocoabridge.mm")
+      set(COCOABRIDGE "cocoabridge")
       if (SPARKLE_FOUND)
             set(MAC_SPARKLE_FILES "macos/SparkleAutoUpdater.mm")
       endif(SPARKLE_FOUND)
+      add_library (
+         cocoabridge STATIC
+         macos/cocoabridge.mm
+         )
+      set_target_properties (
+         cocoabridge
+         PROPERTIES
+         COMPILE_FLAGS "-g -Wall -Wextra -Winvalid-pch  -include ${PROJECT_SOURCE_DIR}/all.h"
+         )
 else (APPLE)
       set(INCS "")
       set(COCOABRIDGE "")
@@ -309,67 +170,63 @@ add_library(mscoreapp STATIC
 
       odladriver.h odladriver.cpp
       abstractdialog.h accessibletoolbutton.h albummanager.h
-      alsa.h alsamidi.h analyse.h articulationprop.h bb.h
-      bendcanvas.h breaksdialog.h capella.h
-      chordview.h click.h continuouspanel.h downloadUtils.h
-      driver.h drumroll.h drumtools.h drumview.h editdrumset.h
+      analyse.h articulationprop.h
+      bendcanvas.h breaksdialog.h
+      chordview.h click.h clickableLabel.h continuouspanel.h downloadUtils.h
+      drumroll.h drumtools.h drumview.h easeinoutcanvas.h editdrumset.h
       editinstrument.h editpitch.h editraster.h editstaff.h
       editstafftype.h editstringdata.h editstyle.h enableplayforwidget.h
-      exampleview.h excerptsdialog.h exportmidi.h exportmp3.h extension.h
+      exampleview.h excerptsdialog.h exportdialog.h extension.h
       file.h fotomode.h fretcanvas.h globals.h greendotbutton.h
-      harmonycanvas.h harmonyedit.h help.h helpBrowser.h icons.h importgtp.h importmxml.h
-      importmxmllogger.h importmxmlnoteduration.h importmxmlnotepitch.h importmxmlpass1.h
-      importmxmlpass2.h importptb.h importxmlfirstpass.h instrdialog.h instrwidget.h jackaudio.h
+      harmonycanvas.h harmonyedit.h help.h helpBrowser.h icons.h
+      instrdialog.h instrwidget.h
       keycanvas.h keyedit.h layer.h licence.h
-      logindialog.h network/loginmanager.h network/loginmanager_p.h
-      magbox.h masterpalette.h
-      measureproperties.h mediadialog.h metaedit.h miconengine.h mididriver.h
-      mixer.h mixertrack.h mixertrackchannel.h mixertrackgroup.h mixertrackitem.h mixertrackpart.h mixerdetails.h musedata.h
-      musescore.h musicxml.h musicxmlfonthandler.h musicxmlsupport.h navigator.h newwizard.h noteGroups.h
-      omrpanel.h ove.h pa.h pagesettings.h palette.h partedit.h parteditbase.h
-      pathlistdialog.h piano.h pianolevels.h pianolevelschooser.h  pianolevelsfilter.h
-      pianokeyboard.h pianoroll.h pianoruler.h pianotools.h pianoview.h
-      playpanel.h pm.h preferences.h preferenceslistwidget.h prefsdialog.h
-      recordbutton.h resourceManager.h revision.h ruler.h scoreaccessibility.h
+      zoombox.h masterpalette.h
+      measureproperties.h mediadialog.h metaedit.h miconengine.h
+      mssplashscreen.h musescore.h navigator.h newwizard.h noteGroups.h
+      omrpanel.h pagesettings.h palette.h partedit.h parteditbase.h
+      pathlistdialog.h piano.h  pianotools.h
+      openfilelocation.h
+      playpanel.h preferences.h preferenceslistwidget.h prefsdialog.h
+      radiobuttongroupbox.h recordbutton.h resourceManager.h ruler.h scoreaccessibility.h
       scoreBrowser.h scoreInfo.h scorePreview.h scoretab.h scoreview.h searchComboBox.h
       selectdialog.h selectionwindow.h selectnotedialog.h selinstrument.h
       seq.h shortcut.h shortcutcapturedialog.h simplebutton.h splitstaff.h stafftextproperties.h
       startcenter.h startupWizard.h stringutils.h svggenerator.h symboldialog.h synthcontrol.h
       templateBrowser.h textcursor.h textpalette.h texttools.h timedialog.h timeline.h timesigproperties.h
-      toolbarEditor.h toolbuttonmenu.h transposedialog.h tremolobarcanvas.h
-      tupletdialog.h updatechecker.h uploadscoredialog.h waveview.h webpage.h workspace.h
+      toolbarEditor.h toolbuttonmenu.h transposedialog.h tremolobarcanvas.h realizeharmonydialog.h
+      tupletdialog.h updatechecker.h waveview.h webpage.h workspace.h migration/scoremigrationdialog.h
+      migration/scoremigrationdialogmodel.h migration/scoremigrator_3_6.h
+      migration/handlers/resetallelementspositionshandler.h
+      migration/handlers/styledefaultshandler.h migration/handlers/lelandstylehandler.h
+      migration/handlers/edwinstylehandler.h
 
       recordbutton.h greendotbutton prefsdialog.h prefsdialog.cpp
       stringutils.h stringutils.cpp
       scoreview.cpp editharmony.cpp editfiguredbass.cpp events.cpp
-      editinstrument.cpp editstyle.cpp
-      icons.cpp importbww.cpp
-      importmxmllogger.cpp importmxmlnoteduration.cpp importmxmlnotepitch.cpp
-      importmxml.cpp importmxmlpass1.cpp importmxmlpass2.cpp
+      editinstrument.cpp editstyle.cpp easeinoutcanvas.cpp
+      clickableLabel.cpp
+      icons.cpp
       instrdialog.cpp instrwidget.cpp
       debugger/debugger.cpp menus.cpp
-      musescore.cpp musescoredialogs.cpp navigator.cpp pagesettings.cpp palette.cpp
+      mssplashscreen.cpp musescore.cpp musescoredialogs.cpp navigator.cpp pagesettings.cpp palette.cpp
       sessionstatusobserver.cpp
       timeline.cpp
-      mixer.cpp mixertrackchannel.cpp mixertrackitem.cpp mixertrackpart.cpp mixerdetails.cpp
       parteditbase.cpp playpanel.cpp selectionwindow.cpp
       preferences.cpp measureproperties.cpp
       seq.cpp textpalette.cpp
       timedialog.cpp symboldialog.cpp shortcutcapturedialog.cpp
-      simplebutton.cpp musedata.cpp
+      radiobuttongroupbox.cpp simplebutton.cpp
+      openfilelocation.cpp
       editdrumset.cpp editstaff.cpp
       timesigproperties.cpp newwizard.cpp transposedialog.cpp
-      excerptsdialog.cpp metaedit.cpp magbox.cpp
-      capella.cpp capxml.cpp exportaudio.cpp
-      synthcontrol.cpp drumroll.cpp pianoroll.cpp piano.cpp
-      pianokeyboard.cpp pianolevels.cpp pianolevelschooser.cpp pianolevelsfilter.cpp
-      pianoruler.cpp pianoview.cpp drumview.cpp scoretab.cpp keyedit.cpp harmonyedit.cpp
+      excerptsdialog.cpp metaedit.cpp zoombox.cpp realizeharmonydialog.cpp
+      exportdialog.cpp
+      exportaudio.cpp
+      synthcontrol.cpp drumroll.cpp piano.cpp
+      drumview.cpp scoretab.cpp keyedit.cpp harmonyedit.cpp
       updatechecker.cpp
-      importove.cpp
-      ove.cpp
       ruler.cpp
-      importgtp.cpp importgtp-gp4.cpp importgtp-gp5.cpp importgtp-gp6.cpp
-      importptb.cpp
       fotomode.cpp drumtools.cpp
       selinstrument.cpp editstafftype.cpp texttools.cpp
       editpitch.cpp editstringdata.cpp editraster.cpp pianotools.cpp mediadialog.cpp
@@ -379,93 +236,31 @@ add_library(mscoreapp STATIC
       stafftextproperties.cpp splitstaff.cpp
       tupletdialog.cpp
       articulationprop.cpp
-      bendcanvas.cpp fretcanvas.cpp tremolobarcanvas.cpp
+      gridcanvas.cpp bendcanvas.cpp fretcanvas.cpp tremolobarcanvas.cpp
       file.cpp keyb.cpp osc.cpp
-      layer.cpp selectdialog.cpp selectnotedialog.cpp propertymenu.cpp shortcut.cpp bb.cpp
+      layer.cpp selectdialog.cpp selectnotedialog.cpp propertymenu.cpp shortcut.cpp
       dragelement.cpp startupWizard.cpp
       svggenerator.cpp
       masterpalette.cpp
       dragdrop.cpp
       waveview.cpp helpBrowser.cpp
-      inspector/inspector.cpp
-      inspector/inspectorBase.cpp
-      inspector/inspectorBeam.cpp
-      inspector/inspectorBend.cpp
-      inspector/inspectorGroupElement.cpp
-      inspector/inspectorImage.cpp
-      inspector/inspectorHarmony.cpp
-      inspector/inspectorFret.cpp
-      inspector/inspectorText.cpp
-      inspector/inspectorMeasureNumber.cpp
-      inspector/inspectorLasso.cpp
-      inspector/inspectorBarline.cpp
-      inspector/inspectorVolta.cpp
-      inspector/inspectorOttava.cpp
-      inspector/inspectorTrill.cpp
-      inspector/inspectorVibrato.cpp
-      inspector/inspectorHairpin.cpp
-      inspector/inspectorJump.cpp
-      inspector/inspectorMarker.cpp
-      inspector/inspectorGlissando.cpp
-      inspector/inspectorNote.cpp
-      inspector/inspectorNoteDot.cpp
-      inspector/inspectorAmbitus.cpp
-      inspector/inspectorArpeggio.cpp
-      inspector/inspectorFingering.cpp
-      inspector/alignSelect.cpp
-      inspector/fontStyleSelect.cpp
-      inspector/offsetSelect.cpp
-      inspector/scaleSelect.cpp
-      inspector/sizeSelect.cpp
-      inspector/inspectorTextBase.cpp
-      inspector/inspectorTextLineBase.cpp
-      inspector/inspectorTextLine.cpp
-      inspector/inspectorLetRing.cpp
-      inspector/inspectorPalmMute.cpp
-      inspector/inspectorPedal.cpp
-      inspector/inspectorDynamic.cpp
-      inspector/inspectorInstrchange.cpp
-      inspector/inspectorTremoloBar.cpp
-      inspector/inspectorElementBase.cpp
-      inspector/resetButton.cpp
       enableplayforwidget.cpp
       editelement.cpp
       editlyrics.cpp
-      musicxmlfonthandler.cpp
-      musicxmlsupport.cpp
-      exportxml.cpp
-      importxml.cpp
-      importxmlfirstpass.cpp
       savePositions.cpp
-      driver.cpp
-      exportmidi.cpp
       noteGroups.cpp
       pathlistdialog.cpp
       exampleview.cpp
       miconengine.cpp
-      importmidi/importmidi.cpp
-      importmidi/importmidi_panel.cpp importmidi/importmidi_operations.cpp
-      importmidi/importmidi_model.cpp importmidi/importmidi_delegate.cpp
-      importmidi/importmidi_meter.cpp importmidi/importmidi_quant.cpp
-      importmidi/importmidi_tuplet.cpp importmidi/importmidi_chord.cpp
-      importmidi/importmidi_swing.cpp importmidi/importmidi_fraction.cpp
-      importmidi/importmidi_drum.cpp importmidi/importmidi_clef.cpp
-      importmidi/importmidi_lrhand.cpp importmidi/importmidi_lyrics.cpp
-      importmidi/importmidi_inner.cpp importmidi/importmidi_tie.cpp
-      importmidi/importmidi_tuplet_voice.cpp importmidi/importmidi_beat.cpp
-      importmidi/importmidi_tuplet_detect.cpp importmidi/importmidi_tuplet_filter.cpp
-      importmidi/importmidi_tuplet_tonotes.cpp importmidi/importmidi_simplify.cpp
-      importmidi/importmidi_voice.cpp importmidi/importmidi_view.cpp importmidi/importmidi_key.cpp
-      importmidi/importmidi_tempo.cpp importmidi/importmidi_instrument.cpp
-      importmidi/importmidi_chordname.cpp
+
       palette/createpalettedialog.cpp
       palette/palettedialog.cpp palette/palettecelldialog.cpp
       palette/palettemodel.cpp palette/palettetree.cpp palette/paletteworkspace.cpp palette/palettewidget.cpp
+      palette/palettelistview.cpp
       scorecmp/scorecmp.cpp scorecmp/scorediffmodel.cpp scorecmp/scorelistmodel.cpp
       resourceManager.cpp downloadUtils.cpp
       textcursor.cpp continuouspanel.cpp accessibletoolbutton.cpp scoreaccessibility.cpp
       startcenter.cpp scoreBrowser.cpp scorePreview.cpp scoreInfo.cpp templateBrowser.cpp
-      logindialog.cpp network/loginmanager.cpp uploadscoredialog.cpp
       breaksdialog.cpp searchComboBox.cpp
       help.cpp help.h
       toolbarEditor.cpp toolbarEditor.h
@@ -476,40 +271,42 @@ add_library(mscoreapp STATIC
       tourhandler.cpp
       script/script.cpp script/scriptentry.cpp script/testscript.cpp script/recorderwidget.cpp
       qml/msqmlengine.cpp qml/nativemenu.cpp qml/nativetooltip.cpp
-      qmldockwidget.cpp
+      qmldockwidget.cpp migration/scoremigrationdialog.cpp migration/scoremigrationdialogmodel.cpp
+      migration/scoremigrator_3_6.cpp
+      migration/handlers/resetallelementspositionshandler.cpp
+      migration/handlers/styledefaultshandler.cpp migration/handlers/lelandstylehandler.cpp
+      migration/handlers/edwinstylehandler.cpp
 
+      ${CLOUD_SRC}
+      ${IMPORTMIDIUI_SRC}
+      ${INSPECTOR_SRC}
+      ${DEBUGGER_SRC}
+      ${MSCORE_MIXER_SRC}
+      ${PIANOROLL_SRC}
       ${WIDGETS_SOURCE_FILES}
-      ${COCOABRIDGE}
       ${OMR_FILES}
-      ${AUDIO}
-      ${SCRIPT_FILES}
+      ${PLUGIN_SRC}
       ${MAC_SPARKLE_FILES}
-      driver.h
-      tremolobarcanvas.h bendcanvas.h fretcanvas.h keycanvas.h harmonycanvas.h
+      gridcanvas.h tremolobarcanvas.h bendcanvas.h fretcanvas.h keycanvas.h harmonycanvas.h
 
       sparkle/autoUpdater.h sparkle/sparkleAutoUpdater.h sparkle/winSparkleAutoUpdater.h
       )
 
-
-
 if (MSVC OR MINGW)
-	target_link_libraries(mscoreapp vorbisfiledll)
+      target_link_libraries(mscoreapp vorbisfiledll)
 else (MSVC OR MINGW)
-	target_link_libraries(mscoreapp vorbisfile)
+      target_link_libraries(mscoreapp vorbisfile)
 endif (MSVC OR MINGW)
 
 target_link_libraries(mscoreapp
       awl
-      bww
-      rtf2html
       ${QTSINGLEAPPLICATION_LIBRARIES}
-      synthesizer
-      midi
-      fluid
+      audio
       effects
       libmscore
       qzip
-      beatroot
+      importexport
+      ${COCOABRIDGE}
       )
 
 if (BUILD_CRASH_REPORTER)
@@ -525,9 +322,6 @@ if (USE_SYSTEM_FREETYPE)
       target_link_libraries(mscoreapp ${FREETYPE_LIBRARIES})
 endif (USE_SYSTEM_FREETYPE)
 
-if (ZERBERUS)
-      target_link_libraries(mscoreapp zerberus synthesizer)
-endif (ZERBERUS)
 if (AEOLUS)
       target_link_libraries(mscoreapp aeolus)
 endif (AEOLUS)
@@ -550,6 +344,10 @@ endif (HAS_AUDIOFILE)
 if (OSC)
       target_link_libraries(mscoreapp ofqf)
 endif (OSC)
+
+if (AVSOMR)
+   target_link_libraries(mscoreapp avsomr)
+endif (AVSOMR)
 
 if (MINGW)
    string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)

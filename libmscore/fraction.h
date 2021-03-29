@@ -76,6 +76,7 @@ class Fraction {
 
       bool isZero() const        { return _numerator == 0;      }
       bool isNotZero() const     { return _numerator != 0;      }
+      bool negative() const      { return _numerator < 0;       }
 
       bool isValid() const       { return _denominator != 0;    }
 
@@ -88,6 +89,9 @@ class Fraction {
 
       Fraction absValue() const  {
             return Fraction(qAbs(_numerator), _denominator); }
+
+      Fraction inverse() const  {
+            return Fraction(_denominator, _numerator); }
 
 
       // --- reduction --- //
@@ -187,20 +191,26 @@ class Fraction {
             return *this;
             }
 
-      #if 0
+
       Fraction& operator/=(int val)
             {
             _denominator *= val;
+            if (_denominator < 0) {
+                  _denominator = -_denominator;
+                  _numerator = -_numerator;
+                  }
+            reduce();
             return *this;
             }
-      #endif
+
+
 
       Fraction operator+(const Fraction& v) const { return Fraction(*this) += v; }
       Fraction operator-(const Fraction& v) const { return Fraction(*this) -= v; }
       Fraction operator-() const                  { return Fraction(-_numerator, _denominator); }
       Fraction operator*(const Fraction& v) const { return Fraction(*this) *= v; }
       Fraction operator/(const Fraction& v) const { return Fraction(*this) /= v; }
-      //      Fraction operator/(int v)             const { return Fraction(*this) /= v; }
+      Fraction operator/(int v)             const { return Fraction(*this) /= v; }
 
 
       //---------------------------------------------------------

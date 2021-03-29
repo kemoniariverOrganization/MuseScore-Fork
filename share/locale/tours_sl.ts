@@ -222,42 +222,48 @@ To pomeni, da v mnogih primerih ne bo treba ničesar ročno premikati.</translat
         <source>The quickest way to scroll up and down is to use your mouse wheel or equivalent touch gesture (for example, two-finger swipe).
     To scroll horizontally, hold &quot;Shift&quot; while using the mouse wheel or touch gesture.</source>
         <comment>navigate-tour</comment>
-        <translation type="unfinished"/>
+        <translation>Najhitrejši način drsenja po zaslonu gor ali dol je z uporabo miškinega kolesca ali enakoznačna poteza s prsti (npr. dvoprstni podrsljaj).
+ Za vodoravno drsenje, med obračanje miškinega kolesca ali pri podrsovanju držie &quot;Dvigalko&quot;</translation>
     </message>
     <message>
         <source>The navigation keys on your keyboard such as &quot;PgUp&quot;, &quot;PgDn&quot;, &quot;Home&quot;, and &quot;End&quot; function as in other applications
     to move between pages.
     Keyboards that lack these keys often provide equivalents such as &quot;Fn+Up/Down/Left/Right&quot;.</source>
         <comment>navigate-tour</comment>
-        <translation type="unfinished"/>
+        <translation>Krmilne tipke kot npr. &quot;Stran ↓&quot;, &quot;Stran ↑&quot;, &quot;Začetek&quot; in &quot;Konec&quot;, se obnašajo kot v ostalih programih
+    za premikanje med strami.
+    Tipkovnice brez teh tipk ponavdi omogočajo nadomestno kombinacijo kot npr. &quot; Fn + ↓/↑/←/→&quot;.</translation>
     </message>
     <message>
         <source>You can move the score short distances by clicking an empty area of the page and dragging.
     By the way, you can also select regions by holding &quot;Shift&quot; while dragging.</source>
         <comment>navigate-tour</comment>
-        <translation type="unfinished"/>
+        <translation>Manjše preokvirjanje notnega zapisa lahko naredite s klikom v prazni del strani in vlečenje.
+    Mimogrede, območje lahko izberete z vlečenjem in sočasnim tiščanjem tipke &quot;Premik&quot; (Shift).</translation>
     </message>
     <message>
         <source>To enter a note of the selected duration, type its letter name or click on the staff.
     Press &quot;Ctrl+Up/Down&quot; (macOS: &quot;Cmd+Up/Down&quot;) to change octave.</source>
         <comment>note-input</comment>
-        <translation type="unfinished"/>
+        <translation>Za vpis note z izbrano vrednostjo, pritisnite tipko z imenom tona ali kliknite v črtovje.
+    Če želite spremeniti oktavo, stisnite &quot;Ctrl + ↓/↑&quot;.</translation>
     </message>
     <message>
         <source>To add an accidental to a note, press the shortcut &quot;Up&quot; or &quot;Down&quot; to raise or lower its pitch,
     or click one of these icons.</source>
         <comment>note-input</comment>
-        <translation type="unfinished"/>
+        <translation>Če želite noti dodati predznak, pritisnite tipko &quot;↑&quot; ali &quot;↓&quot; za dvig oz. spust tonske višine,
+     lahko pa kliknete eno izmed teh ikon.</translation>
     </message>
     <message>
         <source>To add a note to a chord, press &quot;Shift&quot; while typing its letter name, or click on the staff.</source>
         <comment>note-input</comment>
-        <translation type="unfinished"/>
+        <translation>Če želite sozvoku dodati ton, tiščite &quot;Premik (Shift)&quot; in pritisnite tipko z imenom note ali kliknite v črtovje.</translation>
     </message>
     <message>
         <source>To create a triplet or other tuplet, select the duration representing the total length of the tuplet, then press &quot;Ctrl+number&quot; or use Add &gt; Tuplets.</source>
         <comment>note-input</comment>
-        <translation type="unfinished"/>
+        <translation>Če želite ustvariti triolo ali katero izmed drugih nepravilnih poddelitev, izberitev vrednost celotne nepravilne poddelitve, nato pritisnite &quot;Ctrl+številka&quot; ali pojdite na Dodaj&gt;Nepravilne poddelitve.</translation>
     </message>
     <message>
         <source>To make a single selection, click the element you want to select.
@@ -266,7 +272,10 @@ To pomeni, da v mnogih primerih ne bo treba ničesar ročno premikati.</translat
     Tip: if you press the &quot;Alt&quot; key (&quot;Option&quot; on macOS) along with the cursor keys you can move through other elements too,
     and also move up and down from staff to staff.</source>
         <comment>select-tour</comment>
-        <translation type="unfinished"/>
+        <translation>Če želite izbrati en sam predmete, nanj enostavno klinete.
+    Postane označen, da se vidi izbranost.
+    S pritiskanjem na tipke &quot;levo&quot; ali &quot;desno&quot; se izbranost seli na levo oz. desno noto ali pavzo notnega zapisa.
+Namig: če med pritiskanje na smerne tipke tiščite tipko &quot;Alt&quot; (&quot;Option&quot; pri Mac OS), se lahko premikate tudi preko drugih predmetov ali v črtovje višje oz. nižje.</translation>
     </message>
     <message>
         <source>A list selection is a combination of single selections.
@@ -274,7 +283,10 @@ To pomeni, da v mnogih primerih ne bo treba ničesar ročno premikati.</translat
     You can also quickly select similar elements by right-clicking (macOS: &quot;Ctrl&quot;+clicking) one
     and then choosing one of the &quot;Select&quot; options from the resulting popup menu.</source>
         <comment>select-tour</comment>
-        <translation type="unfinished"/>
+        <translation>Izbor seznama je skupek večih posameznih izborov.
+    Med izbiranjem oz. odizbiranjem tiščite tiško &quot;Ctrl&quot;.
+    Podobne predmete lahko hitro izberete, če na enega desnokliknete (macOS: &quot;Ctrl&quot;+klik)
+    in nato izbereta eno izmed možnosti &quot;Izbiranja&quot; v pojavnem meniju.</translation>
     </message>
     <message>
         <source>A range selection includes everything from one point in time to another across one or more staves.
@@ -282,14 +294,19 @@ To pomeni, da v mnogih primerih ne bo treba ničesar ročno premikati.</translat
     To make a range selection, click the first note, rest, or measure you want to select, then &quot;Shift&quot;+click the last.
     You can also extend range selections by holding the &quot;Shift&quot; key while moving the cursor.</source>
         <comment>select-tour</comment>
-        <translation type="unfinished"/>
+        <translation>Obsegovni izbor zajame vse od ene do druge točke preko enega ali več črtovij.
+      Označen je kot moder pravokotnik, ki zajema celoten izbor.
+      Za obsegovni izbor kliknite prvo noto, pavzo ali takt, nato  držite &quot;Dvigalko (Shift)&quot; in kliknite na konec željenega izbora.
+      Izbor lahko s tiščanjem tipke &quot;Dvigalka (Shift)&quot; in premikanjem kazalke tudi razširite. </translation>
     </message>
     <message>
         <source>Another way to make selections is to hold &quot;Shift&quot; while dragging.
     If your selection includes notes, it will automatically be made as a range selection;
     otherwise it will be made as a list selection.</source>
         <comment>select-tour</comment>
-        <translation type="unfinished"/>
+        <translation>Drugi način izbiranja je s tičanjem tipke &quot;Dvigalaka (Shift)&quot; in vlečenjem.
+    Če vaš izbor zajema note, bo samodejno to postal osbegovni izbor;
+    v nasprotnem primeru pa bo postal izbor seznama.</translation>
     </message>
     <message>
         <source>Most elements on the lines palette span a range from a start element to an end element.
@@ -300,32 +317,43 @@ To pomeni, da v mnogih primerih ne bo treba ničesar ročno premikati.</translat
 
     - Press &quot;Shift+Left&quot; to move that handle backward.</source>
         <comment>spanner-drop-apply</comment>
-        <translation type="unfinished"/>
+        <translation>Večini predmetom s palete &quot;Črte&quot; razpon sega od začetne do končne točke predmeta.
+
+    Za urejanje razpona dvokliknite črto (kar samodejno izbere zadnjo ročico) in:
+
+- stisnite &quot;Dvigalko (Shift) + →&quot; za premik  ročice naprej,
+
+- stisnite &quot;Dvigalko (Shift) + ←&quot; za premik ročice nazaj.</translation>
     </message>
     <message>
         <source>Alternatively, first selecting a range of elements in the score and then double-clicking a line element in the palette will add that new element across the selected range.</source>
         <comment>spanner-drop-apply</comment>
-        <translation type="unfinished"/>
+        <translation>Druga možnost je, da najprej izberete nabor predmetov v črtovju, nato pa z dvoklikom črte v paleti dodate to črto čez izbrane predmete.</translation>
     </message>
     <message>
         <source>This is the score view, where you can view and edit your score.
     Use your mouse wheel or touchpad to scroll (with &quot;Shift&quot; to scroll horizontally).
     If you have multiple scores open, you can switch between them using tabs at the top of your score view.</source>
         <comment>welcome</comment>
-        <translation type="unfinished"/>
+        <translation>To je pogled notnega zapisa, v katerem lahko notni zapis pregledujete in urejate.
+    Za drsenje po zaslonu uporabite miškino kolesce ali sledilno ploščico (&quot;Dvigalka (Shift)&quot; za vodoravno drsenje).
+    Če imate odprtih več notnih zapisov, lahko med njimi preklapljate z zaviki na vrhu pogleda notnega zpisa.</translation>
     </message>
     <message>
         <source>The File Operations toolbar allows you to create/save/open/print files and undo/redo changes.
     You can also save to your musescore.com account if you go to File &gt; Save Online.
     The controls at the right of this toolbar control the display of your score.</source>
         <comment>welcome</comment>
-        <translation type="unfinished"/>
+        <translation>Orodna vrstica &quot;Datotečna opravila&quot; omogoča ustvarjanje, shranjevanje, odpiranje in tiskanje datotek ter razveljavljanje oz. uveljavljanje sprememb.
+    Prav tako lahko shranite v vaš račun Musescore.com, če greste na Datoteka &gt; Shrani na spletišče ...
+    Krmilniki na desni strani te orodne vrstice upravljajo s prikazom notnega zapisa.</translation>
     </message>
     <message>
         <source>The main menu contains most other commands.
     In addition, many commands can be accessed via keyboard shortcuts or by right-clicking (macOS: &quot;Ctrl&quot;+clicking) within the score view.</source>
         <comment>welcome</comment>
-        <translation type="unfinished"/>
+        <translation>Glavni meni vsebuje večino drugih ukazov.
+   Dodatno lahko do mnogih ukazov dostopate tudi preko tipkovnih bližnic ali preko desnega klika (macOS: &quot;Ctrl&quot; + klik) v pogled notnega zapisa.</translation>
     </message>
     <message>
         <source>That's the end of this tour!
@@ -333,7 +361,10 @@ To pomeni, da v mnogih primerih ne bo treba ničesar ročno premikati.</translat
     To disable these, deselect &quot;Continue showing tours&quot; before closing this window.
     You can also enable/disable and reset tours in Help &gt; Tours.</source>
         <comment>welcome</comment>
-        <translation type="unfinished"/>
+        <translation>To je konec tega vodnika!
+   Tekom uporabe MuseScora se vam bo prikazalo še več vodnikov, ki bodo razložili zmožnosti.
+    Če želite to onesposobiti, odznačite pred zapiranjem tega okna &quot;Nadaljuj s prikazovanjem vodnikov&quot;.
+    Vodnike lahko omogočite / onemogočite ali ponastavite v Pomoč &gt; Vodniki.</translation>
     </message>
 </context>
 </TS>

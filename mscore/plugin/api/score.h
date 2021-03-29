@@ -15,10 +15,14 @@
 
 #include "scoreelement.h"
 #include "part.h"
+#include "style.h"
 #include "excerpt.h"
 #include "libmscore/score.h"
 
 namespace Ms {
+
+class InstrumentTemplate;
+
 namespace PluginAPI {
 
 class Cursor;
@@ -26,6 +30,7 @@ class Segment;
 class Measure;
 class Selection;
 class Score;
+class Staff;
 
 extern Selection* selectionWrap(Ms::Selection* select);
 
@@ -43,7 +48,11 @@ class Score : public Ms::PluginAPI::ScoreElement {
       Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Excerpt>  excerpts   READ excerpts)
       /** First measure of the score (read only) */
       Q_PROPERTY(Ms::PluginAPI::Measure*        firstMeasure      READ firstMeasure)
-      /** First multimeasure rest measure of the score (read only).\n \since MuseScore 3.2 */
+      /**
+       * First multimeasure rest measure of the score (read only).
+       * \see \ref Measure.nextMeasureMM
+       * \since MuseScore 3.2
+       */
       Q_PROPERTY(Ms::PluginAPI::Measure*        firstMeasureMM    READ firstMeasureMM)
       /** Number of harmony items (chord symbols) in the score (read only).\n \since MuseScore 3.2 */
       Q_PROPERTY(int                            harmonyCount      READ harmonyCount)
@@ -56,7 +65,11 @@ class Score : public Ms::PluginAPI::ScoreElement {
       Q_PROPERTY(int                            keysig            READ keysig)
       /** Last measure of the score (read only) */
       Q_PROPERTY(Ms::PluginAPI::Measure*        lastMeasure       READ lastMeasure)
-      /** Last multimeasure rest measure of the score (read only).\n \since MuseScore 3.2 */
+      /**
+       * Last multimeasure rest measure of the score (read only).
+       * \see \ref Measure.prevMeasureMM
+       * \since MuseScore 3.2
+       */
       Q_PROPERTY(Ms::PluginAPI::Measure*        lastMeasureMM     READ lastMeasureMM)
       /** Last score segment (read only) */
       Q_PROPERTY(Ms::PluginAPI::Segment*        lastSegment       READ lastSegment) // TODO: make it function? Was property in 2.X, but firstSegment is a function...
@@ -86,6 +99,31 @@ class Score : public Ms::PluginAPI::ScoreElement {
       Q_PROPERTY(QString                        mscoreRevision    READ mscoreRevision)
       /** Current selections for the score. \since MuseScore 3.3 */
       Q_PROPERTY(Ms::PluginAPI::Selection*      selection         READ selection)
+      /** Style settings for this score. \since MuseScore 3.5 */
+      Q_PROPERTY(Ms::PluginAPI::MStyle*         style             READ style)
+      /**
+       * Page numbering offset. The user-visible number of the given \p page is defined as
+       * \code
+       * page.pagenumber + 1 + score.pageNumberOffset
+       * \endcode
+       * \since MuseScore 3.5
+       * \see Page::pagenumber
+       */
+      Q_PROPERTY(int pageNumberOffset READ pageNumberOffset WRITE setPageNumberOffset)
+
+      /**
+       * List of staves in this score.
+       * \since MuseScore 3.5
+       */
+      Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Staff> staves    READ staves)
+
+      /**
+       * Returns the path to the file from which the score was imported, or empty.
+       * \warning If the score hasn't been saved yet, this will return an empty string.
+       * \since MuseScore 3.6
+       */
+      Q_PROPERTY(QString path READ path)
+
 
    public:
       /// \cond MS_INTERNAL
@@ -105,6 +143,11 @@ class Score : public Ms::PluginAPI::ScoreElement {
       QString lyricist() { return score()->metaTag("lyricist"); } // not the meanwhile obsolete "poet"
       QString title() { return score()->metaTag("workTitle"); }
       Ms::PluginAPI::Selection* selection() { return selectionWrap(&score()->selection()); }
+      MStyle* style() { return wrap(&score()->style(), score()); }
+      QString path() { return score()->importedFilePath(); }
+
+      int pageNumberOffset() const { return score()->pageNumberOffset(); }
+      void setPageNumberOffset(int offset) { score()->undoChangePageNumberOffset(offset); }
 
       /// \endcond
 
@@ -113,8 +156,26 @@ class Score : public Ms::PluginAPI::ScoreElement {
       /// Sets the metatag named \p tag to \p val
       Q_INVOKABLE void setMetaTag(const QString& tag, const QString& val) { score()->setMetaTag(tag, val); }
 
-//      //@ appends to the score a named part as last part
-//      Q_INVOKABLE void appendPart(const QString&);
+      /**
+       * Appends a part with the instrument defined by \p instrumentId
+       * to this score.
+       * \param instrumentId - ID of the instrument to be added, as listed in
+       * [`instruments.xml`](https://github.com/musescore/MuseScore/blob/3.x/share/instruments/instruments.xml)
+       * file.
+       * \since MuseScore 3.5
+       */
+      Q_INVOKABLE void appendPart(const QString& instrumentId);
+      /**
+       * Appends a part with the instrument defined by the given MusicXML ID
+       * to this score.
+       * \param instrumentMusicXmlId -
+       * [MusicXML Sound ID](https://www.musicxml.com/for-developers/standard-sounds/)
+       * of the instrument to be added.
+       * \see \ref Ms::PluginAPI::Part::instrumentId, \ref Ms::PluginAPI::Instrument::instrumentId
+       * \since MuseScore 3.5
+       */
+      Q_INVOKABLE void appendPartByMusicXmlId(const QString& instrumentMusicXmlId);
+
       /// Appends a number of measures to this score.
       Q_INVOKABLE void appendMeasures(int n) { score()->appendMeasures(n); }
       Q_INVOKABLE void addText(const QString& type, const QString& text);
@@ -181,6 +242,9 @@ class Score : public Ms::PluginAPI::ScoreElement {
 
       QQmlListProperty<Part> parts() { return wrapContainerProperty<Part>(this, score()->parts());   }
       QQmlListProperty<Excerpt> excerpts() { return wrapExcerptsContainerProperty<Excerpt>(this, score()->excerpts());   }
+      QQmlListProperty<Staff> staves();
+
+      static const Ms::InstrumentTemplate* instrTemplateFromName(const QString& name); // used by PluginAPI::newScore()
       /// \endcond
       };
 } // namespace PluginAPI

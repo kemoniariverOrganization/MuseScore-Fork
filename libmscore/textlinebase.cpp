@@ -106,11 +106,36 @@ void TextLineBaseSegment::draw(QPainter* painter) const
             textlineLineWidth *= mag();
       QPen pen(color, textlineLineWidth, tl->lineStyle());
       QPen solidPen(color, textlineLineWidth, Qt::SolidLine);
-      if (tl->lineStyle() == Qt::CustomDashLine) {
-            QVector<qreal> dashes { tl->dashLineLen(), tl->dashGapLen() };
-            pen.setDashPattern(dashes);
+
+      //Replace generic Qt dash patterns with improved equivalents to show true dots
+      QVector<qreal> dotted        = { 0.01, 1.99 }; // 0.01 for cap dots. tighter than default Qt Dotline (would be { 0.01, 2.99 }). 
+      QVector<qreal> dashed        = { 3.0, 3.0 };   // Compensating for caps. Qt default DashLine is { 4.0, 2.0 }
+      QVector<qreal> dashDotted    = { 3.0, 3.0, 0.01, 2.99 };
+      QVector<qreal> dashDotDotted = { 3.0, 3.0, 0.01, 2.99, 0.01, 2.99 };
+      QVector<qreal> customDashes  = { tl->dashLineLen(), tl->dashGapLen() };
+  
+      switch (tl->lineStyle()) {
+            case Qt::DashLine:
+                pen.setDashPattern(dashed);
+                break;
+            case Qt::DotLine:
+                pen.setDashPattern(dotted);
+                pen.setCapStyle(Qt::RoundCap); // round dots
+                break;
+            case Qt::DashDotLine:
+                pen.setDashPattern(dashDotted);
+                break;
+            case Qt::DashDotDotLine:
+                pen.setDashPattern(dashDotDotted);
+                break;
+            case Qt::CustomDashLine:
+                pen.setDashPattern(customDashes);
+                break;
+            default:
+                  break;
             }
 
+      //Draw lines      
       if (twoLines) {   // hairpins
             painter->setPen(pen);
             painter->drawLines(&points[0], 1);
@@ -119,7 +144,7 @@ void TextLineBaseSegment::draw(QPainter* painter) const
       else {
             int start = 0;
             int end = npoints;
-            //draw hooks as solid
+            //draw centered hooks as solid
             painter->setPen(solidPen);
             if (tl->beginHookType() == HookType::HOOK_90T) {
                   painter->drawLines(&points[0], 1);
@@ -140,7 +165,7 @@ void TextLineBaseSegment::draw(QPainter* painter) const
                   QVector<qreal> nDashes { dash, newGap };
                   if (tl->beginHookType() == HookType::HOOK_45 || tl->beginHookType() == HookType::HOOK_90) {
                         qreal absD = sqrt(QPointF::dotProduct(points[start+1]-points[start], points[start+1]-points[start])) / textlineLineWidth;
-                        numPairs = max(qreal(1), absD / (dash + gap));
+                        numPairs = std::max(qreal(1), absD / (dash + gap));
                         nDashes[1] = (absD - dash * (numPairs + 1)) / numPairs;
                         pen.setDashPattern(nDashes);
                         painter->setPen(pen);
@@ -149,14 +174,14 @@ void TextLineBaseSegment::draw(QPainter* painter) const
                         }
                   if (tl->endHookType() == HookType::HOOK_45 || tl->endHookType() == HookType::HOOK_90) {
                         qreal absD = sqrt(QPointF::dotProduct(points[end]-points[end-1], points[end]-points[end-1])) / textlineLineWidth;
-                        numPairs = max(qreal(1), absD / (dash + gap));
+                        numPairs = std::max(qreal(1), absD / (dash + gap));
                         nDashes[1] = (absD - dash * (numPairs + 1)) / numPairs;
                         pen.setDashPattern(nDashes);
                         painter->setPen(pen);
                         painter->drawLines(&points[end-1], 1);
                         end--;
                         }
-                  numPairs = max(qreal(1), adjustedLineLength / (dash + gap));
+                  numPairs = std::max(qreal(1), adjustedLineLength / (dash + gap));
                   nDashes[1] = (adjustedLineLength - dash * (numPairs + 1)) / numPairs;
                   pen.setDashPattern(nDashes);
                   }
@@ -206,6 +231,10 @@ void TextLineBaseSegment::layout()
 
       if (spanner()->placeBelow())
             rypos() = staff() ? staff()->height() : 0.0;
+
+      // adjust Y pos to staffType offset
+      if (staffType())
+            rypos() += staffType()->yoffset().val() * spatium();
 
       if (!tl->diagonal())
             _offset2.setY(0);
@@ -261,8 +290,9 @@ void TextLineBaseSegment::layout()
 
       // diagonal line with no text or hooks - just use the basic rectangle for line
       if (_text->empty() && _endText->empty() && pp2.y() != 0
-          && textLineBase()->beginHookType() == HookType::NONE && textLineBase()->beginHookType() == HookType::NONE) {
-            npoints = 2;
+          && textLineBase()->beginHookType() == HookType::NONE
+          && textLineBase()->endHookType() == HookType::NONE) {
+            npoints = 1; // 2 points, but only one line must be drawn
             points[0] = pp1;
             points[1] = pp2;
             lineLength = sqrt(QPointF::dotProduct(pp2-pp1, pp2-pp1));
@@ -382,6 +412,8 @@ void TextLineBaseSegment::layout()
 
 void TextLineBaseSegment::spatiumChanged(qreal ov, qreal nv)
       {
+      LineSegment::spatiumChanged(ov, nv);
+
       textLineBase()->spatiumChanged(ov, nv);
       _text->spatiumChanged(ov, nv);
       _endText->spatiumChanged(ov, nv);

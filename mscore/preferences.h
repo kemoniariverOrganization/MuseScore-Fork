@@ -29,6 +29,7 @@
  *   using getString(), getInt(), etc., and changed using setPreference()
  */
 
+#include <functional>
 #include "globals.h"
 #include "global/settings/types/preferencekeys.h"
 
@@ -63,14 +64,29 @@ enum {
       MIDI_REMOTES
       };
 
-enum class MuseScoreStyleType : char {
-      DARK_FUSION = 0,
-      LIGHT_FUSION
+// The "theme" the user chooses in Preferences
+enum class MuseScorePreferredStyleType : char {
+      LIGHT_FUSION = 0,
+      DARK_FUSION,
+#ifdef Q_OS_MAC
+      FOLLOW_SYSTEM,
+#endif
+      };
+
+// The actual "theme", resulting from the user's choice
+enum class MuseScoreEffectiveStyleType : char {
+      LIGHT_FUSION = 0,
+      DARK_FUSION
       };
 
 // MusicXML export break values
 enum class MusicxmlExportBreaks : char {
       ALL, MANUAL, NO
+      };
+
+// Default-zoom-type options
+enum class ZoomType : int {
+      PERCENTAGE = 0, PAGE_WIDTH, WHOLE_PAGE, TWO_PAGES,
       };
 
 class PreferenceVisitor;
@@ -141,6 +157,8 @@ class EnumPreference: public Preference {
 class Preferences {
    public:
       typedef QHash<QString, Preference*> prefs_map_t;
+      using OnSetListener = std::function<void(const QString& key, const QVariant& value)>;
+      using ListenerID = uint32_t;
 
    private:
 
@@ -174,6 +192,8 @@ class Preferences {
       QMap<QString, QVariant> getDefaultLocalPreferences();
       bool useLocalPrefs = false;
 
+      QMap<ListenerID, OnSetListener> _onSetListeners;
+
    public:
       Preferences();
       ~Preferences();
@@ -196,6 +216,10 @@ class Preferences {
       void setToDefaultValue(const QString key);
       void setPreference(const QString key, QVariant value);
 
+      // set listeners
+      ListenerID addOnSetListener(const OnSetListener& l);
+      void removeOnSetListener(const ListenerID& id);
+
       // A temporary preference is stored "in memory" only and not written to file.
       // If there is both a "normal" preference and a temporary preference with the same
       // key the temporary preference is used
@@ -207,7 +231,8 @@ class Preferences {
        */
       SessionStart sessionStart() const;
       MusicxmlExportBreaks musicxmlExportBreaks() const;
-      MuseScoreStyleType globalStyle() const;
+      MuseScorePreferredStyleType preferredGlobalStyle() const;
+      MuseScoreEffectiveStyleType effectiveGlobalStyle() const;
       bool isThemeDark() const;
 
       template<typename T>
@@ -234,17 +259,32 @@ extern Preferences preferences;
 // Stream operators for enum classes
 // enum classes don't play well with QSettings without custom serialization
 inline QDataStream&
-operator<<(QDataStream &out, const Ms::MuseScoreStyleType &val)
+operator<<(QDataStream &out, const Ms::MuseScorePreferredStyleType &val)
 {
     return out << static_cast<int>(val);
 }
 
 inline QDataStream&
-operator>>(QDataStream &in, Ms::MuseScoreStyleType &val)
+operator>>(QDataStream &in, Ms::MuseScorePreferredStyleType &val)
 {
     int tmp;
     in >> tmp;
-    val = static_cast<Ms::MuseScoreStyleType>(tmp);
+    val = static_cast<Ms::MuseScorePreferredStyleType>(tmp);
+    return in;
+}
+
+inline QDataStream&
+operator<<(QDataStream &out, const Ms::MuseScoreEffectiveStyleType &val)
+{
+    return out << static_cast<int>(val);
+}
+
+inline QDataStream&
+operator>>(QDataStream &in, Ms::MuseScoreEffectiveStyleType &val)
+{
+    int tmp;
+    in >> tmp;
+    val = static_cast<Ms::MuseScoreEffectiveStyleType>(tmp);
     return in;
 }
 
@@ -293,6 +333,7 @@ class PreferenceVisitor {
 
 Q_DECLARE_METATYPE(Ms::SessionStart);
 Q_DECLARE_METATYPE(Ms::MusicxmlExportBreaks);
-Q_DECLARE_METATYPE(Ms::MuseScoreStyleType);
+Q_DECLARE_METATYPE(Ms::MuseScorePreferredStyleType);
+Q_DECLARE_METATYPE(Ms::MuseScoreEffectiveStyleType);
 
 #endif

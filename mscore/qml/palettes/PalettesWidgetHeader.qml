@@ -19,7 +19,10 @@
 
 import QtQuick 2.8
 import QtQuick.Controls 2.1
+import QtQuick.Layouts 1.1
+
 import MuseScore.Palette 3.3
+import MuseScore.Utils 3.3
 
 import "utils.js" as Utils
 
@@ -27,106 +30,203 @@ Item {
     id: header
 
     property PaletteWorkspace paletteWorkspace: null
-    property string cellFilter: searchTextInput.text
-    readonly property bool searching: searchTextInput.activeFocus || searchTextClearButton.activeFocus
+    property bool searchTextFieldShown: false
+    readonly property bool searching: searchTextField.activeFocus || stopSearchButton.activeFocus
+    property string cellFilter: searchTextField.text
 
     signal addCustomPaletteRequested()
 
     implicitHeight: childrenRect.height
 
-    StyledButton {
-        id: morePalettesButton
-        height: searchTextInput.height
-        width: parent.width / 2 - 4
-        text: qsTr("Add palettes")
-        onClicked: palettePopup.visible = !palettePopup.visible
+    function paletteSearchRequested() {
+        searchTextFieldShown = true
+        searchTextField.forceActiveFocus()
+        searchTextField.selectAll()
     }
 
-    TextField {
-        id: searchTextInput
-        width: parent.width / 2 - 4
-        anchors.right: parent.right
+    function stopPaletteSearch() {
+        searchTextField.clear()
+        searchTextFieldShown = false
+        if (paletteTree.currentTreeItem)
+            paletteTree.currentTreeItem.forceActiveFocus()
+        else
+            startSearchButton.forceActiveFocus()
+    }
 
-        placeholderText: qsTr("Search")
-        //TODO: in the future we may wish these values to differ
-        //Accessible.name: qsTr("Search")
-        Accessible.name: placeholderText
-        font: globalStyle.font
+    function showPaletteOptionsMenu() {
+        paletteOptionsMenu.x = paletteOptionsButton.x + paletteOptionsButton.width - paletteOptionsMenu.width;
+        paletteOptionsMenu.y = paletteOptionsButton.y;
+        collapseAllMenuItem.enabled = paletteTree.numberOfExpandedPalettes() > 0
+        expandAllMenuItem.enabled = paletteTree.numberOfCollapsedPalettes() > 0 && !paletteWorkspace.singlePalette
+        paletteOptionsMenu.open();
+    }
 
-        color: globalStyle.text
+    RowLayout {
+        width: parent.width
 
-        background: Rectangle {
-            color: globalStyle.base
-            border.color: "#aeaeae"
+        height: searchTextField.height
+        spacing: 6
+
+        StyledButton {
+            id: morePalettesButton
+            visible: !searchTextFieldShown
+            Layout.preferredHeight: searchTextField.height
+            Layout.fillWidth: true
+            text: qsTr("Add Palettes")
+            onClicked: {
+                palettesListPopup.visible = !palettesListPopup.visible
+            }
         }
 
-        KeyNavigation.tab: paletteTree.currentTreeItem
-        KeyNavigation.up: paletteTree
-        KeyNavigation.down: paletteTree
-        Keys.onDownPressed: paletteTree.focusFirstItem();
-        Keys.onUpPressed: paletteTree.focusLastItem();
-
-        StyledToolButton {
-            id: searchTextClearButton
-            anchors {
-                top: parent.top
-                bottom: parent.bottom
-                right: parent.right
-                margins: 1
-            }
-            width: height
-            visible: searchTextInput.text.length && searchTextInput.width > 2 * width
-            flat: true
-            onClicked: searchTextInput.clear()
-
-            padding: 4
-
-            text: qsTr("Clear search text")
-
-            onHoveredChanged: {
-                if (hovered) {
-                    mscore.tooltip.item = searchTextClearButton;
-                    mscore.tooltip.text = searchTextClearButton.text;
-                } else if (mscore.tooltip.item == searchTextClearButton)
-                    mscore.tooltip.item = null;
-            }
-
+        StyledButton {
+            id: startSearchButton
+            visible: !searchTextFieldShown
+            Layout.preferredHeight: searchTextField.height
+            Layout.preferredWidth: searchTextField.height
+            text: qsTr("Search")
+            padding: 5
             contentItem: StyledIcon {
-                source: "icons/clear.png"
+                source: "icons/MagnifyingGlass.svg"
+            }
+            onClicked: {
+                palettesListPopup.visible = false
+                paletteSearchRequested()
+            }
+        }
+
+        StyledButton {
+            id: paletteOptionsButton
+            visible: !searchTextFieldShown
+            Layout.preferredHeight: searchTextField.height
+            Layout.preferredWidth: searchTextField.height
+            padding: 4
+            text: qsTr("Options")
+            contentItem: StyledIcon {
+                source: "icons/ThreeDotMenu.svg"
+            }
+            onClicked: {
+                palettesListPopup.visible = false
+                showPaletteOptionsMenu()
+            }
+        }
+
+        TextField {
+            id: searchTextField
+            visible: searchTextFieldShown
+            Layout.fillWidth: true
+            rightPadding: stopSearchButton.width + 6
+
+            placeholderText: qsTr("Search")
+            font: globalStyle.font
+
+            onTextChanged: resultsTimer.restart()
+            onActiveFocusChanged: {
+                resultsTimer.stop();
+                Accessible.name = qsTr("Palette Search")
+            }
+
+            selectByMouse: true
+
+            Timer {
+                id: resultsTimer
+                interval: 500
+                onTriggered: {
+                    parent.Accessible.name = parent.text.length === 0 ? qsTr("Palette Search") : qsTr("%n palette(s) match(es)", "", paletteTree.count);
+                }
+            }
+
+            color: globalStyle.text
+
+            background: Rectangle {
+                color: globalStyle.base
+                border.color: "#aeaeae"
+            }
+
+            Keys.onDownPressed: paletteTree.focusFirstItem();
+            Keys.onUpPressed: paletteTree.focusLastItem();
+            Keys.onEscapePressed: stopPaletteSearch();
+
+            StyledToolButton {
+                id: stopSearchButton
+                anchors {
+                    top: parent.top
+                    bottom: parent.bottom
+                    right: parent.right
+                    margins: 1
+                }
+                width: height
+                flat: true
+                onClicked: stopPaletteSearch()
+
+                padding: 5
+
+                text: qsTr("Stop search")
+
+                onHoveredChanged: {
+                    if (hovered) {
+                        mscore.tooltip.item = stopSearchButton;
+                        mscore.tooltip.text = stopSearchButton.text;
+                    } else if (mscore.tooltip.item === stopSearchButton) {
+                        mscore.tooltip.item = null;
+                    }
+                }
+
+                contentItem: StyledIcon {
+                    source: "icons/CloseButton.svg"
+                }
             }
         }
     }
 
     PalettesListPopup {
-        id: palettePopup
+        id: palettesListPopup
         paletteWorkspace: palettesWidget.paletteWorkspace
 
         visible: false
 
+        arrowAnchorItem: morePalettesButton
         y: morePalettesButton.y + morePalettesButton.height + Utils.style.popupMargin
         width: parent.width
         maxHeight: paletteTree.height * 0.8
 
-        arrowX: morePalettesButton.x + morePalettesButton.width / 2 - x
-
-        modal: true
+        modal: false
         dim: false
         focus: true
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside | Popup.CloseOnPressOutsideParent
 
         onAddCustomPaletteRequested: header.addCustomPaletteRequested()
+    }
+
+    Menu {
+        id: paletteOptionsMenu
+
+        MenuItem {
+            text: qsTr("Open only one Palette at a time")
+            checkable: true
+            checked: paletteWorkspace.singlePalette
+            onTriggered: paletteWorkspace.singlePalette = checked
+        }
+
+        MenuSeparator {}
+
+        MenuItem {
+            id: collapseAllMenuItem
+            text: qsTr("Collapse all Palettes")
+            onTriggered: paletteTree.expandCollapseAll(false)
+        }
+
+        MenuItem {
+            id: expandAllMenuItem
+            text: qsTr("Expand all Palettes")
+            onTriggered: paletteTree.expandCollapseAll(true)
+        }
     }
 
     Connections {
         target: palettesWidget
         onHasFocusChanged: {
-            if (!palettesWidget.hasFocus && !palettePopup.inMenuAction)
-                palettePopup.visible = false;
+            if (!palettesWidget.hasFocus && !palettesListPopup.inMenuAction)
+                palettesListPopup.visible = false;
         }
-    }
-
-    Connections {
-        target: mscore
-        onPaletteSearchRequested: searchTextInput.forceActiveFocus()
     }
 }

@@ -33,6 +33,11 @@ void SlurSegment::draw(QPainter* painter) const
       QPen pen(curColor());
       qreal mag = staff() ? staff()->mag(slur()->tick()) : 1.0;
 
+      //Replace generic Qt dash patterns with improved equivalents to show true dots (keep in sync with tie.cpp)
+      QVector<qreal> dotted     = { 0.01, 1.99 }; // tighter than Qt DotLine equivalent - woud be { 0.01, 2.99 }
+      QVector<qreal> dashed     = { 3.00, 3.00 }; // Compensating for caps. Qt default DashLine is { 4.0, 2.0 }
+      QVector<qreal> wideDashed = { 5.00, 6.00 };
+
       switch (slurTie()->lineType()) {
             case 0:
                   painter->setBrush(QBrush(pen.color()));
@@ -42,20 +47,19 @@ void SlurSegment::draw(QPainter* painter) const
                   break;
             case 1:
                   painter->setBrush(Qt::NoBrush);
+                  pen.setCapStyle(Qt::RoundCap); // round dots
+                  pen.setDashPattern(dotted);
                   pen.setWidthF(score()->styleP(Sid::SlurDottedWidth) * mag);
-                  pen.setStyle(Qt::DotLine);
                   break;
             case 2:
                   painter->setBrush(Qt::NoBrush);
+                  pen.setDashPattern(dashed);
                   pen.setWidthF(score()->styleP(Sid::SlurDottedWidth) * mag);
-                  pen.setStyle(Qt::DashLine);
                   break;
             case 3:
                   painter->setBrush(Qt::NoBrush);
+                  pen.setDashPattern(wideDashed);
                   pen.setWidthF(score()->styleP(Sid::SlurDottedWidth) * mag);
-                  pen.setStyle(Qt::CustomDashLine);
-                  QVector<qreal> dashes { 5.0, 5.0 };
-                  pen.setDashPattern(dashes);
                   break;
             }
       painter->setPen(pen);
@@ -193,7 +197,7 @@ void SlurSegment::changeAnchor(EditData& ed, Element* element)
                   Element* ee = 0;
                   if (scr) {
                         QList<ScoreElement*> sel = scr->linkList();
-                        for (ScoreElement* lcr : sel) {
+                        for (ScoreElement* lcr : qAsConst(sel)) {
                               Element* le = toElement(lcr);
                               if (le->score() == sp->score() && le->track() == sp->track()) {
                                     se = le;
@@ -203,7 +207,7 @@ void SlurSegment::changeAnchor(EditData& ed, Element* element)
                         }
                   if (ecr) {
                         QList<ScoreElement*> sel = ecr->linkList();
-                        for (ScoreElement* lcr : sel) {
+                        for (ScoreElement* lcr : qAsConst(sel)) {
                               Element* le = toElement(lcr);
                               if (le->score() == sp->score() && le->track() == sp->track2()) {
                                     ee = le;
@@ -373,6 +377,11 @@ void SlurSegment::layoutSegment(const QPointF& p1, const QPointF& p2)
       ups(Grip::START).p = p1;
       ups(Grip::END).p   = p2;
       _extraHeight = 0.0;
+
+      //Adjust Y pos to staff type yOffset before other calculations
+      if (staffType())
+            rypos() += staffType()->yoffset().val() * spatium();
+
       computeBezier();
 
       if (autoplace() && system()) {
@@ -1050,7 +1059,7 @@ SpannerSegment* Slur::layoutSystem(System* system)
                               // but grace notes are exceptions
                               _up = true;
                               }
-                        else if (m1->hasVoices(startCR()->staffIdx()) && c1 && !c1->isGrace()) {
+                        else if (m1->hasVoices(startCR()->staffIdx(), tick(), ticks()) && c1 && !c1->isGrace()) {
                               // in polyphonic passage, slurs go on the stem side
                               _up = startCR()->up();
                               }
@@ -1080,14 +1089,14 @@ SpannerSegment* Slur::layoutSystem(System* system)
                   slurSegment->layoutSegment(sPos.p1, QPointF(system->bbox().width(), sPos.p1.y()));
                   break;
             case SpannerSegmentType::MIDDLE: {
-                  qreal x1 = firstNoteRestSegmentX(system);
+                  qreal x1 = system->firstNoteRestSegmentX(true);
                   qreal x2 = system->bbox().width();
                   qreal y  = staffIdx() > system->staves()->size() ? system->y() : system->staff(staffIdx())->y();
                   slurSegment->layoutSegment(QPointF(x1, y), QPointF(x2, y));
                   }
                   break;
             case SpannerSegmentType::END:
-                  slurSegment->layoutSegment(QPointF(firstNoteRestSegmentX(system), sPos.p2.y()), sPos.p2);
+                  slurSegment->layoutSegment(QPointF(system->firstNoteRestSegmentX(true), sPos.p2.y()), sPos.p2);
                   break;
             }
 
@@ -1172,7 +1181,7 @@ void Slur::layout()
                         // but grace notes are exceptions
                         _up = true;
                         }
-                  else if (m1->hasVoices(startCR()->staffIdx()) && c1 && c1->noteType() == NoteType::NORMAL) {
+                  else if (m1->hasVoices(startCR()->staffIdx(), tick(), ticks()) && c1 && c1->noteType() == NoteType::NORMAL) {
                         // in polyphonic passage, slurs go on the stem side
                         _up = startCR()->up();
                         }
@@ -1237,7 +1246,7 @@ void Slur::layout()
             // case 3: middle segment
             else if (i != 0 && system != sPos.system2) {
                   segment->setSpannerSegmentType(SpannerSegmentType::MIDDLE);
-                  qreal x1 = firstNoteRestSegmentX(system);
+                  qreal x1 = system->firstNoteRestSegmentX(true);
                   qreal x2 = system->bbox().width();
                   qreal y  = staffIdx() > system->staves()->size() ? system->y() : system->staff(staffIdx())->y();
                   segment->layoutSegment(QPointF(x1, y), QPointF(x2, y));
@@ -1245,7 +1254,7 @@ void Slur::layout()
             // case 4: end segment
             else {
                   segment->setSpannerSegmentType(SpannerSegmentType::END);
-                  qreal x = firstNoteRestSegmentX(system);
+                  qreal x = system->firstNoteRestSegmentX(true);
                   segment->layoutSegment(QPointF(x, sPos.p2.y()), sPos.p2);
                   }
             if (system == sPos.system2)

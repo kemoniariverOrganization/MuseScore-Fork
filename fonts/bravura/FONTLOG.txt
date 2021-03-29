@@ -415,3 +415,34 @@ Changelog
 
 29 April 2018 (Daniel Spreadbury) Bravura 1.272
 – Improved 'Large, narrow sans serif time signatures' stylistic set (ss04) glyphs to make the forms more condensed
+
+29 January 2019 (Daniel Spreadbury) Bravura 1.276 / Bravura Text 1.277
+– Fixed the scale factor for optical variants for chord symbol accidentals
+
+31 August 2019 (Daniel Spreadbury) Bravura 1.31 / Bravura Text 1.31
+– New fingeringQLower (U+ED8E) and fingeringSLower (U+ED8F) glyphs in the 'Fingering supplement' range
+
+6 December 2019 (Daniel Spreadbury) Bravura 1.32
+– Reduced height of accidentalBracketLeft (U+E26C) and accidentalBracketRight (U+E26D)
+– Corrected registration of a number of glyphs in the 'Extended Helmholtz-Ellis Just Intonation accidentals' range (U+E2DF, U+E2E6, U+E2E7, U+E2E8, U+E2E9, U+E2F7, U+E2F8, U+E2EB).
+
+18 March 2020 (Daniel Spreadbury) Bravura 1.34
+– Swapped direction of wiggleArpeggiatoDownArrow (U+EAAE) and wiggleArpeggiatoDownSwash (U+EAAC)
+
+27 March 2020 (Daniel Spreadbury) Bravura 1.35
+– Added figbassTripleFlat (U+ECC1) and figbassTripleSharp (U+ECC2)
+
+1 April 2020 (Daniel Spreadbury) Bravura 1.36
+– Reduced size of accidentals in 'Figured bass' and 'Figured bass supplement' range to match published editions more closely
+
+3 May 2020 (Daniel Spreadbury) Bravura 1.37
+– Improved shape of accidentals in 'Figured bass' and 'Figured bass supplement' range, reducing the length of ascenders and descenders and increasing the size of the counters
+– Improved the design of figBass4Raised (U+EA56) to make the vertical stroke more prominent, aiding legibility at small sizes
+
+25 June 2020 (Daniel Spreadbury) Bravura 1.38
+– Added new stylistic set (ss10) for accidentals for figured bass with longer ascenders and descenders
+– Improved the shape of the tips of each of the up- and down-stem flags in the 'Flags' range (U+E240–U+E251)
+– Improved the shape of ornamentTrill (U+E566) and ornamentShortTrill (U+E56C)
+
+30 June 2020 (Daniel Spreadbury) Bravura 1.39
+– Reduced size of accidentals in stylistic set ss10 to match published editions more closely

@@ -43,6 +43,7 @@ FretCanvas::FretCanvas(QWidget* parent)
 //      setFrameStyle(QFrame::Raised | QFrame::Panel);
       cstring = -2;
       cfret   = -2;
+      _currentDtype = FretDotType::NORMAL;
       }
 
 //---------------------------------------------------------
@@ -246,10 +247,15 @@ void FretCanvas::mousePressEvent(QMouseEvent* ev)
       if (fret < 0 || fret > _frets || string < 0 || string >= _strings)
             return;
 
+      bool haveShift = (ev->modifiers() & Qt::ShiftModifier) || _barreMode;
+      bool haveCtrl  = (ev->modifiers() & Qt::ControlModifier) || _multidotMode;
+
       diagram->score()->startCmd();
 
       // Click above the fret diagram, so change the open/closed string marker
       if (fret == 0) {
+            if (!haveCtrl)
+                  diagram->undoSetFretDot(string, 0);
             switch (diagram->marker(string).mtype) {
                   case FretMarkerType::CIRCLE:
                         diagram->undoSetFretMarker(string, FretMarkerType::CROSS);
@@ -259,7 +265,6 @@ void FretCanvas::mousePressEvent(QMouseEvent* ev)
                         break;
                   case FretMarkerType::NONE:
                   default:
-                        diagram->undoSetFretDot(string, 0);
                         diagram->undoSetFretMarker(string, FretMarkerType::CIRCLE);
                         break;
                   }
@@ -267,8 +272,6 @@ void FretCanvas::mousePressEvent(QMouseEvent* ev)
       // Otherwise, the click is on the fretboard itself
       else {
             FretItem::Dot thisDot = diagram->dot(string, fret)[0];
-            bool haveShift = (ev->modifiers() & Qt::ShiftModifier) || _barreMode;
-            bool haveCtrl  = (ev->modifiers() & Qt::ControlModifier) || _multidotMode;
 
             // Click on an existing dot
             if (thisDot.exists() && !haveShift)
@@ -290,7 +293,7 @@ void FretCanvas::mousePressEvent(QMouseEvent* ev)
                               };
 
                               // Find the lowest dot type that doesn't already exist on the string
-                              for (int i = 0; i < int(dtypes.size()); i++) {
+                              for (size_t i = 0; i < dtypes.size(); i++) {
                                     FretDotType t = dtypes[i];
 
                                     bool hasThisType = false;

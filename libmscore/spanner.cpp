@@ -99,6 +99,17 @@ void SpannerSegment::setSystem(System* s)
       }
 
 //---------------------------------------------------------
+//   spatiumChanged
+//---------------------------------------------------------
+
+void SpannerSegment::spatiumChanged(qreal ov, qreal nv) 
+      {
+      Element::spatiumChanged(ov, nv);
+      if (offsetIsSpatiumDependent())
+            _offset2 *= (nv / ov);
+      }
+
+//---------------------------------------------------------
 //   mimeData
 //---------------------------------------------------------
 
@@ -514,6 +525,7 @@ bool Spanner::setProperty(Pid propertyId, const QVariant& v)
       {
       switch (propertyId) {
             case Pid::SPANNER_TICK:
+                  triggerLayout(); // spanner may have moved to another system
                   setTick(v.value<Fraction>());
                   setStartElement(0);     // invalidate
                   setEndElement(0);       //
@@ -521,6 +533,7 @@ bool Spanner::setProperty(Pid propertyId, const QVariant& v)
                         score()->addSpanner(this);
                   break;
             case Pid::SPANNER_TICKS:
+                  triggerLayout(); // spanner may now span for a smaller number of systems
                   setTicks(v.value<Fraction>());
                   setEndElement(0);       // invalidate
                   break;
@@ -777,7 +790,7 @@ Chord* Spanner::endChord()
       if (!_endElement && type() == ElementType::SLUR) {
             Segment* s = score()->tick2segmentMM(tick2(), false, SegmentType::ChordRest);
             _endElement = s ? toChordRest(s->element(track2())) : nullptr;
-            if (!_endElement->isChord())
+            if (_endElement && !_endElement->isChord())
                   _endElement = nullptr;
             }
       return toChord(_endElement);
@@ -936,9 +949,28 @@ Spanner* Spanner::nextSpanner(Element* e, int activeStaff)
                                   Element* st = s->startElement();
                                   if (!st)
                                         continue;
-                                  if (s->startSegment() == toSpanner(e)->startSegment() &&
-                                      st->staffIdx() == activeStaff)
-                                        return s;
+                                  if (s->startSegment() == toSpanner(e)->startSegment()) {
+                                        if (st->staffIdx() == activeStaff)
+                                              return s;
+#if 1
+                                        else if (st->isMeasure() && activeStaff == 0)
+                                              return s;
+#else
+                                        // TODO: when navigating system spanners, check firstVisibleStaff()?
+                                        // currently, information about which staves are hidden
+                                        // is not exposed through navigation,
+                                        // so it may make more sense to continue to navigate systems elements
+                                        // only when actually on staff 0
+                                        // see also https://musescore.org/en/node/301496
+                                        // and https://github.com/musescore/MuseScore/pull/5755
+                                        else if (st->isMeasure()) {
+                                              SpannerSegment* ss = s->frontSegment();
+                                              int top = ss && ss->system() ? ss->system()->firstVisibleStaff() : 0;
+                                              if (activeStaff == top)
+                                                    return s;
+                                              }
+#endif
+                                        }
                                   //else
                                         //return nullptr;
                                   }
@@ -968,9 +1000,23 @@ Spanner* Spanner::prevSpanner(Element* e, int activeStaff)
                         while (i != range.first) {
                               --i;
                               Spanner* s =  i->second;
-                              if (s->startSegment() == toSpanner(e)->startSegment() &&
-                                  s->startElement()->staffIdx() == activeStaff)
-                                    return s;
+                              Element* st = s->startElement();
+                              if (s->startSegment() == toSpanner(e)->startSegment()) {
+                                    if (st->staffIdx() == activeStaff)
+                                          return s;
+#if 1
+                                    else if (st->isMeasure() && activeStaff == 0)
+                                          return s;
+#else
+                                    // TODO: see nextSpanner()
+                                    else if (st->isMeasure()) {
+                                          SpannerSegment* ss = s->frontSegment();
+                                          int top = ss && ss->system() ? ss->system()->firstVisibleStaff() : 0;
+                                          if (activeStaff == top)
+                                                return s;
+                                          }
+#endif
+                                    }
                               }
                         break;
                         }

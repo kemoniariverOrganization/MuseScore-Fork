@@ -51,7 +51,7 @@ void Score::resetSystems(bool layoutAll, LayoutContext& lc)
       {
       Page* page = 0;
       if (layoutAll) {
-            for (System* s : _systems) {
+            for (System* s : qAsConst(_systems)) {
                   for (SpannerSegment* ss : s->spannerSegments())
                         ss->setParent(0);
                   }
@@ -121,7 +121,7 @@ void Score::resetSystems(bool layoutAll, LayoutContext& lc)
                         m->mmRest()->setSystem(nullptr);
                         }
                   if (firstMeasure) {
-                        system->layoutSystem(0.0);
+                        system->layoutSystem(pos.rx());
                         if (m->repeatStart()) {
                               Segment* s = m->findSegmentR(SegmentType::StartRepeatBarLine, Fraction(0,1));
                               if (!s->enabled())
@@ -240,26 +240,14 @@ void LayoutContext::layoutLinear()
                                     for (Chord* cc : c->graceNotes()) {
                                           if (cc->beam() && cc->beam()->elements().front() == cc)
                                                 cc->beam()->layout();
-                                          for (Note* n : cc->notes()) {
-                                                Tie* tie = n->tieFor();
-                                                if (tie)
-                                                      tie->layout();
-                                                for (Spanner* sp : n->spannerFor())
-                                                      sp->layout();
-                                                }
+                                          cc->layoutSpanners();
                                           for (Element* element : cc->el()) {
                                                 if (element->isSlur())
                                                       element->layout();
                                                 }
                                           }
                                     c->layoutArpeggio2();
-                                    for (Note* n : c->notes()) {
-                                          Tie* tie = n->tieFor();
-                                          if (tie)
-                                                tie->layout();
-                                          for (Spanner* sp : n->spannerFor())
-                                                sp->layout();
-                                          }
+                                    c->layoutSpanners();
                                     if (c->tremolo()) {
                                           Tremolo* t = c->tremolo();
                                           Chord* c1 = t->chord1();

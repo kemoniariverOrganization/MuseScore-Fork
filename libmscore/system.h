@@ -47,7 +47,10 @@ class BarLine;
 class SysStaff {
       QRectF _bbox;                 // Bbox of StaffLines.
       Skyline _skyline;
-      qreal _yOff { 0    };         // offset of top staff line within bbox
+      qreal _yOff   { 0.0 };        // offset of top staff line within bbox
+      qreal _yPos   { 0.0 };        // y position of bbox after System::layout2
+      qreal _height { 0.0 };        // height of bbox after System::layout2
+      qreal _continuousDist { -1.0 }; // distance for continuous mode
       bool _show  { true };         // derived from Staff or false if empty
                                     // staff is hidden
    public:
@@ -59,6 +62,13 @@ class SysStaff {
       void setbbox(const QRectF& r) { _bbox = r; }
       qreal y() const               { return _bbox.y() + _yOff; }
       void setYOff(qreal offset)    { _yOff = offset; }
+      qreal yOffset() const         { return _yOff; }
+
+      void saveLayout();
+      void restoreLayout();
+
+      qreal continuousDist() const      { return _continuousDist;  }
+      void setContinuousDist(qreal val) { _continuousDist = val;   }
 
       bool show() const             { return _show; }
       void setShow(bool v)          { _show = v; }
@@ -77,17 +87,19 @@ class SysStaff {
 //---------------------------------------------------------
 
 class System final : public Element {
-      SystemDivider* _systemDividerLeft    { 0 };     // to the next system
-      SystemDivider* _systemDividerRight   { 0 };
+      SystemDivider* _systemDividerLeft    { nullptr };     // to the next system
+      SystemDivider* _systemDividerRight   { nullptr };
 
       std::vector<MeasureBase*> ml;
       QList<SysStaff*> _staves;
       QList<Bracket*> _brackets;
       QList<SpannerSegment*> _spannerSegments;
 
-      qreal _leftMargin              { 0.0    };     ///< left margin for instrument name, brackets etc.
-      mutable bool fixedDownDistance { false  };
-      qreal _distance;                               // temp. variable used during layout
+      qreal _leftMargin              { 0.0     };     ///< left margin for instrument name, brackets etc.
+      mutable bool fixedDownDistance { false   };
+      mutable Spacer* activeSpacer   { nullptr };
+      qreal _distance                { 0.0     };     // temp. variable used during layout
+      qreal _systemHeight            { 0.0     };
 
       int firstVisibleSysStaff() const;
       int lastVisibleSysStaff() const;
@@ -99,16 +111,17 @@ class System final : public Element {
 public:
       System(Score*);
       ~System();
-      virtual System* clone() const override      { return new System(*this); }
-      virtual ElementType type() const override   { return ElementType::SYSTEM; }
 
-      virtual void add(Element*) override;
-      virtual void remove(Element*) override;
-      virtual void change(Element* o, Element* n) override;
-      virtual void write(XmlWriter&) const override;
-      virtual void read(XmlReader&) override;
+      System* clone() const override      { return new System(*this); }
+      ElementType type() const override   { return ElementType::SYSTEM; }
 
-      virtual void scanElements(void* data, void (*func)(void*, Element*), bool all=true) override;
+      void add(Element*) override;
+      void remove(Element*) override;
+      void change(Element* o, Element* n) override;
+      void write(XmlWriter&) const override;
+      void read(XmlReader&) override;
+
+      void scanElements(void* data, void (*func)(void*, Element*), bool all=true) override;
 
       void appendMeasure(MeasureBase*);
       void removeMeasure(MeasureBase*);
@@ -116,11 +129,15 @@ public:
 
       Page* page() const                    { return (Page*)parent(); }
 
-      void layoutSystem(qreal);
+      void layoutSystem(qreal, const bool isFirstSystem = false, bool firstSystemIndent = false);
+      void setMeasureHeight(qreal height);
+      void layoutBracketsVertical();
+      void layoutInstrumentNames();
 
       void addBrackets(Measure* measure);
 
       void layout2();                     ///< Called after Measure layout.
+      void restoreLayout2();
       void clear();                       ///< Clear measure list.
 
       QRectF bboxStaff(int staff) const      { return _staves[staff]->bbox(); }
@@ -137,6 +154,7 @@ public:
       void adjustStavesNumber(int);
 
       int y2staff(qreal y) const;
+      int searchStaff(qreal y, int preferredStaff = -1, qreal spacingFactor = 0.5) const;
       void setInstrumentNames(bool longName, Fraction tick = {0,1});
       Fraction snap(const Fraction& tick, const QPointF p) const;
       Fraction snapNote(const Fraction& tick, const QPointF p, int staff) const;
@@ -161,8 +179,8 @@ public:
       SystemDivider* systemDividerLeft() const  { return _systemDividerLeft; }
       SystemDivider* systemDividerRight() const { return _systemDividerRight; }
 
-      virtual Element* nextSegmentElement() override;
-      virtual Element* prevSegmentElement() override;
+      Element* nextSegmentElement() override;
+      Element* prevSegmentElement() override;
 
       qreal minDistance(System*) const;
       qreal topDistance(int staffIdx, const SkylineLine&) const;
@@ -171,12 +189,20 @@ public:
       qreal minBottom() const;
       qreal spacerDistance(bool up) const;
 
+      qreal firstNoteRestSegmentX(bool leading = false);
+
       void moveBracket(int staffIdx, int srcCol, int dstCol);
       bool hasFixedDownDistance() const { return fixedDownDistance; }
+      Spacer* getActiveSpacer() const { return activeSpacer; }
       int firstVisibleStaff() const;
       int nextVisibleStaff(int) const;
       qreal distance() const { return _distance; }
       void setDistance(qreal d) { _distance = d; }
+
+      int firstSysStaffOfPart(const Part* part) const;
+      int firstVisibleSysStaffOfPart(const Part* part) const;
+      int lastSysStaffOfPart(const Part* part) const;
+      int lastVisibleSysStaffOfPart(const Part* part) const;
       };
 
 typedef QList<System*>::iterator iSystem;

@@ -22,6 +22,7 @@
 #include "musescore.h"
 #include "preferences.h"
 #include "qml/nativemenu.h"
+#include "scoreview.h"
 
 #include <QQmlContext>
 
@@ -146,6 +147,7 @@ void MsQuickView::keyPressEvent(QKeyEvent* evt)
             return;
 
       if (evt->key() == Qt::Key_Escape && evt->modifiers() == Qt::NoModifier) {
+            mscore->currentScoreView()->activateWindow();
             mscore->focusScoreView();
             evt->accept();
             }
@@ -159,7 +161,7 @@ QmlStyle::QmlStyle(QPalette p, QObject* parent)
    : QObject(parent), _palette(p)
       {
       _font.setFamily(preferences.getString(PREF_UI_THEME_FONTFAMILY));
-      _font.setPointSize(preferences.getInt(PREF_UI_THEME_FONTSIZE));
+      _font.setPointSize(preferences.getDouble(PREF_UI_THEME_FONTSIZE));
       }
 
 //---------------------------------------------------------
@@ -211,8 +213,10 @@ QQuickView* QmlDockWidget::getView()
 
 void QmlDockWidget::ensureQmlViewFocused()
       {
-      if (_view && !_view->activeFocusItem())
+      if (_view && !_view->activeFocusItem()) {
+            widget()->activateWindow();
             widget()->setFocus();
+            }
       }
 
 //---------------------------------------------------------
@@ -259,6 +263,13 @@ void QmlDockWidget::setSource(const QUrl& url)
       setupStyle();
 
       view->setSource(url);
+      // In some cases, setSource() will result in errors the first time the sources are loaded.
+      // If this happens, reload the sources from the same URL.
+      // For some reason, it seems to work the second time.
+      if (view->status() == QQuickView::Error) {
+            engine->clearComponentCache();
+            view->setSource(url);
+            }
       view->setResizeMode(QQuickView::SizeRootObjectToView);
       }
 

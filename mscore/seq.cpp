@@ -21,7 +21,7 @@
 #include "seq.h"
 #include "musescore.h"
 
-#include "synthesizer/msynthesizer.h"
+#include "audio/midi/msynthesizer.h"
 #include "libmscore/rendermidi.h"
 #include "libmscore/slur.h"
 #include "libmscore/tie.h"
@@ -41,7 +41,7 @@
 #include "libmscore/repeatlist.h"
 #include "libmscore/audio.h"
 #include "synthcontrol.h"
-#include "pianoroll.h"
+#include "pianoroll/pianoroll.h"
 #include "pianotools.h"
 
 #include "click.h"
@@ -345,6 +345,8 @@ void Seq::start()
             return;
             }
 
+      mscore->moveControlCursor();
+
       allowBackgroundRendering = true;
       collectEvents(getPlayStartUtick());
       if (cs->playMode() == PlayMode::AUDIO) {
@@ -561,7 +563,7 @@ void Seq::playEvent(const NPlayEvent& event, unsigned framePos)
                   putEvent(event, framePos);
                   }
             }
-      else if (type == ME_CONTROLLER || type == ME_PITCHBEND)
+      else if (type == ME_CONTROLLER || type == ME_PITCHBEND || type == ME_AFTERTOUCH || type == ME_POLYAFTER)
             putEvent(event, framePos);
       }
 
@@ -618,6 +620,9 @@ void Seq::processMessages()
                         break;
                   case SeqMsgId::SEEK:
                         setPos(msg.intVal);
+                        break;
+                  case SeqMsgId::ALL_NOTE_OFF:
+                        _synti->allNotesOff(msg.intVal);
                         break;
                   default:
                         break;
@@ -833,8 +838,10 @@ void Seq::process(unsigned framesPerPeriod, float* buffer)
                         if (mscore->loop()) {
                               int loopOutUTick = cs->repeatList().tick2utick(cs->loopOutTick().ticks());
                               if (loopOutUTick < scoreEndUTick) {
-                                    // Also make sure we are not "before" the loop
-                                    if (playPosUTick >= loopOutUTick || cs->repeatList().utick2tick(playPosUTick) < cs->loopInTick().ticks()) {
+                                    qreal framesPerPeriodInTime = static_cast<qreal>(framesPerPeriod) / MScore::sampleRate;
+                                    int framesPerPeriodInTicks = cs->utime2utick(framesPerPeriodInTime);
+                                    // Also make sure we are inside the loop
+                                    if (playPosUTick >= loopOutUTick - 2 * framesPerPeriodInTicks || cs->repeatList().utick2tick(playPosUTick) < cs->loopInTick().ticks()) {
                                           qDebug ("Process: playPosUTick = %d, cs->loopInTick().ticks() = %d, cs->loopOutTick().ticks() = %d, getCurTick() = %d, loopOutUTick = %d, playFrame = %d",
                                                             playPosUTick,      cs->loopInTick().ticks(),      cs->loopOutTick().ticks(),      getCurTick(),      loopOutUTick,    *pPlayFrame);
                                           if (cachedPrefs.useJackTransport) {
@@ -846,7 +853,7 @@ void Seq::process(unsigned framesPerPeriod, float* buffer)
                                                       }
                                                 }
                                           else {
-                                                emit toGui('3');
+                                                emit toGui('3'); // calls loopStart()
                                                 }
                                           // Exit this function to avoid segmentation fault in Scoreview
                                           return;
@@ -1035,7 +1042,11 @@ void Seq::initInstruments(bool realTime)
 
 void Seq::renderChunk(const MidiRenderer::Chunk& ch, EventMap* eventMap)
       {
-      midi.renderChunk(ch, eventMap, mscore->synthesizerState(), /* metronome */ true);
+      SynthesizerState synState = mscore->synthesizerState();
+      MidiRenderer::Context ctx(synState);
+      ctx.metronome = true;
+      ctx.renderHarmony = true;
+      midi.renderChunk(ch, eventMap, ctx);
       renderEventsStatus.setOccupied(ch.utick1(), ch.utick2());
       }
 
@@ -1086,7 +1097,7 @@ void Seq::collectEvents(int utick)
             }
 
       updateEventsEnd();
-      playPos = events.cbegin();
+      playPos = mscore->loop() ? events.find(cs->loopInTick().ticks()) : events.cbegin();
       playlistChanged = false;
       mutex.unlock();
       }
@@ -1314,11 +1325,18 @@ void Seq::stopNotes(int channel, bool realTime)
                   putEvent(event);
             else
                   sendEvent(event);
-      };
+            };
+      // For VSTs/devices that do not support All Notes Off
+      // CTRL_ALL_NOTES_OFF should still be evoked after calling this function, even if it seems redundant
+      auto turnAllNotesOff = [send](int channel) {
+            for (unsigned note = 0; note < 128; note++)
+                  send(NPlayEvent(ME_NOTEOFF, channel, note, 0));
+            };
       // Stop notes in all channels
       if (channel == -1) {
-            for(int ch = 0; ch < int(cs->midiMapping().size()); ch++) {
+            for(unsigned ch = 0; ch < cs->midiMapping().size(); ch++) {
                   send(NPlayEvent(ME_CONTROLLER, ch, CTRL_SUSTAIN, 0));
+                  turnAllNotesOff(ch);
                   send(NPlayEvent(ME_CONTROLLER, ch, CTRL_ALL_NOTES_OFF, 0));
                   if (cs->midiChannel(ch) != 9)
                         send(NPlayEvent(ME_PITCHBEND,  ch, 0, 64));
@@ -1326,12 +1344,14 @@ void Seq::stopNotes(int channel, bool realTime)
             }
       else {
             send(NPlayEvent(ME_CONTROLLER, channel, CTRL_SUSTAIN, 0));
+            turnAllNotesOff(channel);
             send(NPlayEvent(ME_CONTROLLER, channel, CTRL_ALL_NOTES_OFF, 0));
             if (cs->midiChannel(channel) != 9)
                   send(NPlayEvent(ME_PITCHBEND,  channel, 0, 64));
             }
-      if (cachedPrefs.useAlsaAudio || cachedPrefs.useJackAudio || cachedPrefs.usePulseAudio || cachedPrefs.usePortAudio)
-            _synti->allNotesOff(channel);
+      if (cachedPrefs.useAlsaAudio || cachedPrefs.useJackAudio || cachedPrefs.usePulseAudio || cachedPrefs.usePortAudio) {
+            guiToSeq(SeqMsg(SeqMsgId::ALL_NOTE_OFF, channel));
+            }
       }
 
 //---------------------------------------------------------
@@ -1750,7 +1770,15 @@ void Seq::setLoopSelection()
 
       if (score && score->selection().isRange()) {
             cs->setLoopInTick(score->selection().tickStart());
-            cs->setLoopOutTick(score->selection().tickEnd());
+            cs->setLoopOutTick(score->selection().tickEnd());      
+            }
+      
+      // add a dummy event to loop end if it is not already there
+      // this is to let the playback reach the end completely before starting again
+      if (!events.count(cs->loopOutTick().ticks())) {
+            NPlayEvent ev;
+            ev.setValue(ME_INVALID);
+            events.insert(std::pair<int, Ms::NPlayEvent>(cs->loopOutTick().ticks(), ev));
             }
       }
 

@@ -184,7 +184,7 @@ class FilterPaletteTreeModel : public QSortFilterProxyModel {
       PaletteCellFilter* cellFilter;
 
       bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override;
-      bool filterAcceptsColumn(int /* sourceColumn */, const QModelIndex& /* sourceParent */) const override { return true; };
+      bool filterAcceptsColumn(int /* sourceColumn */, const QModelIndex& /* sourceParent */) const override { return true; }
 
    private slots:
       void invalidateFilter() { QSortFilterProxyModel::invalidateFilter(); }
@@ -200,7 +200,7 @@ class FilterPaletteTreeModel : public QSortFilterProxyModel {
 class PaletteCellFilterProxyModel : public QSortFilterProxyModel {
       Q_OBJECT
    public:
-      PaletteCellFilterProxyModel(QObject* parent = nullptr) : QSortFilterProxyModel(parent) {}
+      PaletteCellFilterProxyModel(QObject* parent = nullptr);
 
       bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override;
       };

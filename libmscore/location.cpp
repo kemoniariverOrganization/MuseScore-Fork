@@ -241,12 +241,12 @@ int Location::note(const Element* e)
             const std::vector<Note*>& notes = n->chord()->notes();
             if (notes.size() == 1)
                   return 0;
-            int noteIdx;
-            for (noteIdx = 0; noteIdx < int(notes.size()); ++noteIdx) {
+            size_t noteIdx;
+            for (noteIdx = 0; noteIdx < notes.size(); ++noteIdx) {
                   if (n == notes.at(noteIdx))
                         break;
                   }
-            return noteIdx;
+            return static_cast<int>(noteIdx);
             }
       return absDefaults.note();
       }
@@ -267,7 +267,7 @@ QVariant Location::getLocationProperty(Pid pid, const Element* start, const Elem
             case Pid::LOCATION_FRACTIONS:
                   return end->rtick() - start->rtick();
             case Pid::LOCATION_GRACE:
-                  return graceIndex(end) - graceIndex(end);
+                  return graceIndex(start) - graceIndex(end);
             case Pid::LOCATION_NOTE:
                   return note(start) - note(end);
             default:

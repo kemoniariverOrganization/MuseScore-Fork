@@ -25,6 +25,14 @@ class Score;
 class InstrumentTemplate;
 
 //---------------------------------------------------------
+//   PreferSharpFlat
+//---------------------------------------------------------
+
+enum class PreferSharpFlat : char {
+      DEFAULT, SHARPS, FLATS
+      };
+
+//---------------------------------------------------------
 //   @@ Part
 //   @P endTrack        int         (read only)
 //   @P harmonyCount    int         (read only)
@@ -50,14 +58,18 @@ class Part final : public ScoreElement {
       QList<Staff*> _staves;
       QString _id;                  ///< used for MusicXml import
       bool _show;                   ///< show part in partitur if true
+      bool _soloist;                ///< used in score ordering
 
       static const int DEFAULT_COLOR = 0x3399ff;
       int _color;                   ///User specified color for helping to label parts
 
+      PreferSharpFlat _preferSharpFlat;
+
    public:
       Part(Score* = 0);
       void initFromInstrTemplate(const InstrumentTemplate*);
-      virtual ElementType type() const override { return ElementType::PART; }
+
+      ElementType type() const override { return ElementType::PART; }
 
       void read(XmlReader&);
       bool readProperties(XmlReader&);
@@ -101,8 +113,10 @@ class Part final : public ScoreElement {
 
       void insertStaff(Staff*, int idx);
       void removeStaff(Staff*);
-      bool show() const                        { return _show;  }
-      void setShow(bool val)                   { _show = val;   }
+      bool show() const                        { return _show;     }
+      void setShow(bool val)                   { _show = val;      }
+      bool soloist() const                     { return _soloist;  }
+      void setSoloist(bool val)                { _soloist = val;   }
 
       Instrument* instrument(Fraction = { -1, 1 } );
       const Instrument* instrument(Fraction = { -1, 1 }) const;
@@ -128,8 +142,14 @@ class Part final : public ScoreElement {
       bool hasTabStaff() const;
       bool hasDrumStaff() const;
 
+      void updateHarmonyChannels(bool isDoOnInstrumentChanged, bool checkRemoval = false);
+      const Channel* harmonyChannel() const;
+
       const Part* masterPart() const;
       Part* masterPart();
+
+      PreferSharpFlat preferSharpFlat() const     { return _preferSharpFlat; }
+      void setPreferSharpFlat(PreferSharpFlat v)  { _preferSharpFlat = v;    }
 
       // Allows not reading the same instrument twice on importing 2.X scores.
       // TODO: do we need instruments info in parts at all?

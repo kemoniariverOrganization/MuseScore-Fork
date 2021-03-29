@@ -11,6 +11,7 @@
 //=============================================================================
 
 #include "dynamic.h"
+#include "dynamichairpingroup.h"
 #include "xml.h"
 #include "score.h"
 #include "measure.h"
@@ -98,18 +99,57 @@ const std::vector<Dynamic::ChangeSpeedItem> Dynamic::changeSpeedTable {
       };
 
 //---------------------------------------------------------
+//   findInString
+//---------------------------------------------------------
+
+// find the longest first match of dynList's dynamic text in s
+// used by the MusicXML export to correctly export dynamics embedded
+// in spanner begin- or endtexts
+// return match's position and length and the dynamic type
+
+int Dynamic::findInString(const QString& s, int& length, QString& type)
+      {
+      length = 0;
+      type = "";
+      int matchIndex { -1 };
+      const int n = sizeof(dynList)/sizeof(*dynList);
+
+      // for all dynamics, find their text in s
+      for (int i = 0; i < n; ++i) {
+            const QString dynamicText = dynList[i].text;
+            const int dynamicLength = dynamicText.length();
+            // note: skip entries with empty text
+            if (dynamicLength > 0) {
+                  const auto index = s.indexOf(dynamicText);
+                  if (index >= 0) {
+                        // found a match, accept it if
+                        // - it is the first one
+                        // - or it starts a the same index but is longer ("pp" versus "p")
+                        if (matchIndex == -1 || (index == matchIndex && dynamicLength > length)) {
+                              matchIndex = index;
+                              length = dynamicLength;
+                              type = dynList[i].tag;
+                              }
+                        }
+                  }
+            }
+
+            return matchIndex;
+      }
+
+//---------------------------------------------------------
 //   Dynamic
 //---------------------------------------------------------
 
 Dynamic::Dynamic(Score* s)
    : TextBase(s, Tid::DYNAMICS, ElementFlag::MOVABLE | ElementFlag::ON_STAFF)
       {
-      initElementStyle(&dynamicsStyle);
       _velocity    = -1;
       _dynRange    = Range::PART;
       _dynamicType = Type::OTHER;
       _changeInVelocity = 128;
       _velChangeSpeed = Speed::NORMAL;
+      initElementStyle(&dynamicsStyle);
       }
 
 Dynamic::Dynamic(const Dynamic& d)
@@ -345,6 +385,19 @@ void Dynamic::reset()
       }
 
 //---------------------------------------------------------
+//   getDragGroup
+//---------------------------------------------------------
+
+std::unique_ptr<ElementGroup> Dynamic::getDragGroup(std::function<bool(const Element*)> isDragged)
+      {
+      if (auto g = HairpinWithDynamicsDragGroup::detectFor(this, isDragged))
+            return g;
+      if (auto g = DynamicNearHairpinsDragGroup::detectFor(this, isDragged))
+            return g;
+      return TextBase::getDragGroup(isDragged);
+      }
+
+//---------------------------------------------------------
 //   drag
 //---------------------------------------------------------
 
@@ -359,15 +412,18 @@ QRectF Dynamic::drag(EditData& ed)
       if (km != (Qt::ShiftModifier | Qt::ControlModifier)) {
             int si       = staffIdx();
             Segment* seg = segment();
-            score()->dragPosition(ed.pos, &si, &seg);
+            score()->dragPosition(canvasPos(), &si, &seg);
             if (seg != segment() || staffIdx() != si) {
+                  const QPointF oldOffset = offset();
                   QPointF pos1(canvasPos());
                   score()->undo(new ChangeParent(this, seg, si));
                   setOffset(QPointF());
                   layout();
                   QPointF pos2(canvasPos());
-                  setOffset(pos1 - pos2);
-                  ed.startMove = pos2;
+                  const QPointF newOffset = pos1 - pos2;
+                  setOffset(newOffset);
+                  ElementEditData* eed = ed.getData(this);
+                  eed->initOffset += newOffset - oldOffset;
                   }
             }
       return f;
@@ -517,17 +573,6 @@ QString Dynamic::propertyUserValue(Pid pid) const
       }
 
 //---------------------------------------------------------
-//   getPropertyStyle
-//---------------------------------------------------------
-
-Sid Dynamic::getPropertyStyle(Pid pid) const
-      {
-      if (pid == Pid::OFFSET)
-            return placeAbove() ? Sid::dynamicsPosAbove : Sid::dynamicsPosBelow;
-      return TextBase::getPropertyStyle(pid);
-      }
-
-//---------------------------------------------------------
 //   accessibleInfo
 //---------------------------------------------------------
 
@@ -545,7 +590,7 @@ QString Dynamic::accessibleInfo() const
       else {
             s = dynamicTypeName();
             }
-      return QString("%1: %2").arg(Element::accessibleInfo()).arg(s);
+      return QString("%1: %2").arg(Element::accessibleInfo(), s);
       }
 
 //---------------------------------------------------------
@@ -561,7 +606,7 @@ QString Dynamic::screenReaderInfo() const
       else {
             s = dynamicTypeName();
             }
-      return QString("%1: %2").arg(Element::accessibleInfo()).arg(s);
+      return QString("%1: %2").arg(Element::accessibleInfo(), s);
       }
 }
 

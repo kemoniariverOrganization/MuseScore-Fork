@@ -15,9 +15,9 @@
 #include "selectionwindow.h"
 #include "playpanel.h"
 #include "synthcontrol.h"
-#include "mixer.h"
+#include "mixer/mixer.h"
 #include "drumroll.h"
-#include "pianoroll.h"
+#include "pianoroll/pianoroll.h"
 
 namespace Ms{
 
@@ -48,29 +48,76 @@ QAccessibleInterface* AccessibleScoreView::parent() const
 
 QRect AccessibleScoreView::rect() const
       {
-      return s->rect();
+      // TODO: calculate this ourselves?
+      //QPoint origin = s->mapToGlobal(QPoint(0, 0));
+      //return s->rect().translated(origin);
+      return QAccessibleWidget::rect();
       }
+
+bool AccessibleScoreView::isValid() const
+      {
+      return true;
+      }
+
+#if 1
+// TODO: determine if setting state explicitly would be helpful
+QAccessible::State AccessibleScoreView::state() const
+      {
+      QAccessible::State st = QAccessibleWidget::state();
+      st.focusable = 1;
+      st.selectable = 1;
+      st.active = 1;
+      //st.animated = 1;
+      return st;
+      }
+#endif
 
 QAccessible::Role AccessibleScoreView::role() const
       {
-      return QAccessible::NoRole;
+      // TODO: determine optimum role
+      // StaticText has the advantage of being read by Windows Narrator
+      //return QAccessible::Graphic;
+      return QAccessible::StaticText;
       }
 
 QString AccessibleScoreView::text(QAccessible::Text t) const
       {
       switch (t) {
             case QAccessible::Name:
+                  // TODO:
+                  // leave empty to prevent name from being read on value/description change
+                  // name will need to be in containing widget so it is read on tab change
+                  // and we will need to be sure to read that
+                  //return "";
                   return s->score()->title();
             case QAccessible::Value:
-                  return s->score()->accessibleInfo();
+            case QAccessible::Description: {
+                  QString msg = s->score()->accessibleMessage();
+                  QString info = s->score()->accessibleInfo();
+                  if (msg.isEmpty())
+                        return info;
+                  s->score()->setAccessibleMessage(""); // clear the message
+                  if (info.isEmpty())
+                        return msg;
+                  return tr("%1, %2").arg(msg).arg(info);
+                  }
             default:
                   return QString();
            }
       }
 
+#if 1
+// TODO: determine best option here
+// without this override, Qt determines window by looking upwards in hierarchy
+// we can supposedly duplicate that by returning nullptr
+// qApp->focusWindow() is the "old" return value,
+// but it could conceivably refer to something other than main window, which seems wrong
 QWindow* AccessibleScoreView::window() const {
-      return qApp->focusWindow();
+      //return nullptr;
+      //return QWdiegt::window();
+      return mscore->windowHandle();      // qApp->focusWindow();
       }
+#endif
 
 QAccessibleInterface* AccessibleScoreView::ScoreViewFactory(const QString &classname, QObject *object)
       {
@@ -82,6 +129,68 @@ QAccessibleInterface* AccessibleScoreView::ScoreViewFactory(const QString &class
 
           return iface;
       }
+
+void* AccessibleScoreView::interface_cast(QAccessible::InterfaceType t)
+      {
+#ifdef SCOREVIEW_VALUEINTERFACE
+      if (t == QAccessible::ValueInterface)
+            return static_cast<QAccessibleValueInterface*>(this);
+#endif
+#ifdef SCOREVIEW_IMAGEINTERFACE
+      if (t == QAccessible::ImageInterface)
+            return static_cast<QAccessibleImageInterface*>(this);
+#endif
+      return QAccessibleWidget::interface_cast(t);
+      }
+
+#ifdef SCOREVIEW_VALUEINTERFACE
+
+void AccessibleScoreView::setCurrentValue(const QVariant& val)
+      {
+      QString str = val.toString();
+      s->score()->setAccessibleInfo(str);
+      }
+
+QVariant AccessibleScoreView::currentValue() const
+      {
+      return s->score()->accessibleInfo();
+      }
+
+QVariant AccessibleScoreView::maximumValue() const
+      {
+      return QString();
+      }
+
+QVariant AccessibleScoreView::minimumValue() const
+      {
+      return QString();
+      }
+
+QVariant AccessibleScoreView::minimumStepSize() const
+      {
+      return QString();
+      }
+
+#endif
+
+#ifdef SCOREVIEW_IMAGEINTERFACE
+
+QString AccessibleScoreView::imageDescription() const
+      {
+      return s->score()->accessibleInfo();
+      }
+
+QSize AccessibleScoreView::imageSize() const
+      {
+      return s->size();
+      }
+
+QPoint AccessibleScoreView::imagePosition() const
+      {
+      return QPoint();
+      }
+
+#endif
 
 
 ScoreAccessibility* ScoreAccessibility::inst = 0;
@@ -176,7 +285,7 @@ void ScoreAccessibility::currentInfoChanged()
             QString optimizedStaff = "";
             if (e->staffIdx() + 1) {
                   _oldStaff = e->staffIdx();
-                  staff = tr("Staff %1").arg(QString::number(e->staffIdx() + 1));
+                  staff = tr("Staff: %1").arg(QString::number(e->staffIdx() + 1));
                   QString staffName = e->staff()->part()->longName(e->tick());
                   if (staffName.isEmpty())
                         staffName = e->staff()->partName();
@@ -185,19 +294,27 @@ void ScoreAccessibility::currentInfoChanged()
                         rez = QString("%1; %2").arg(rez).arg(staff);
                         }
                   else {
-                        rez = QString("%1; %2 (%3)").arg(rez).arg(staff).arg(staffName);
+                        rez = QString("%1; %2 (%3)").arg(rez).arg(staff).arg(staffName.replace('\n', ' ')); // no newlines in the status bar
                         }
                   if (e->staffIdx() != oldStaff)
                         optimizedStaff = QString("%1 (%2)").arg(staff).arg(staffName);
                   }
             statusBarString = rez;
             statusBarLabel->setText(rez);
+
+            if (scoreView->mscoreState() & STATE_ALLTEXTUAL_EDIT) {
+                  // Don't say element name during text editing.
+                  score->setAccessibleInfo("");
+                  return;
+                  }
+
             QString screenReaderRez;
-            if (rez != oldStatus || oldScreenReaderInfo.isEmpty()) {
+            QString newScreenReaderInfo = e->screenReaderInfo();
+            if (rez != oldStatus || newScreenReaderInfo != oldScreenReaderInfo || oldScreenReaderInfo.isEmpty()) {
                   // status has changed since last call, or there is no existing screenreader info
                   //
                   // build new screenreader info
-                  screenReaderRez = QString("%1%2 %3 %4").arg(e->screenReaderInfo()).arg(optimizedBarsAndBeats).arg(optimizedStaff).arg(e->accessibleExtraInfo());
+                  screenReaderRez = QString("%1%2 %3 %4").arg(newScreenReaderInfo).arg(optimizedBarsAndBeats).arg(optimizedStaff).arg(e->accessibleExtraInfo());
                   makeReadable(screenReaderRez);
                   }
             else {
@@ -246,29 +363,64 @@ ScoreAccessibility* ScoreAccessibility::instance()
 void ScoreAccessibility::updateAccessibilityInfo()
       {
       ScoreView* w = static_cast<MuseScore*>(mainWindow)->currentScoreView();
-      if (!w) return;
+      if (!w)
+            return;
 
       currentInfoChanged();
 
       //getInspector->isAncestorOf is used so that inspector and search dialog don't loose focus
       //when this method is called
       //TODO: create a class to manage focus and replace this massive if
-      if ( (qApp->focusWidget() != w) &&
-           !mscore->inspector()->isAncestorOf(qApp->focusWidget()) &&
-           !(mscore->searchDialog() && mscore->searchDialog()->isAncestorOf(qApp->focusWidget())) &&
-           !(mscore->getSelectionWindow() && mscore->getSelectionWindow()->isAncestorOf(qApp->focusWidget())) &&
-           !(mscore->getPlayPanel() && mscore->getPlayPanel()->isAncestorOf(qApp->focusWidget())) &&
-           !(mscore->getSynthControl() && mscore->getSynthControl()->isAncestorOf(qApp->focusWidget())) &&
-           !(mscore->getMixer() && mscore->getMixer()->isAncestorOf(qApp->focusWidget())) &&
-           !(mscore->searchDialog() && mscore->searchDialog()->isAncestorOf(qApp->focusWidget())) &&
-           !(mscore->getDrumrollEditor() && mscore->getDrumrollEditor()->isAncestorOf(qApp->focusWidget())) &&
-           !(mscore->getPianorollEditor() && mscore->getPianorollEditor()->isAncestorOf(qApp->focusWidget()))) {
+      QWidget* focusWidget = qApp->focusWidget();
+      if ((focusWidget != w) &&
+           !(mscore->inspector() && mscore->inspector()->isAncestorOf(focusWidget)) &&
+           !(mscore->searchDialog() && mscore->searchDialog()->isAncestorOf(focusWidget)) &&
+           !(mscore->getSelectionWindow() && mscore->getSelectionWindow()->isAncestorOf(focusWidget)) &&
+           !(mscore->getPlayPanel() && mscore->getPlayPanel()->isAncestorOf(focusWidget)) &&
+           !(mscore->getSynthControl() && mscore->getSynthControl()->isAncestorOf(focusWidget)) &&
+           !(mscore->getMixer() && mscore->getMixer()->isAncestorOf(focusWidget)) &&
+           !(mscore->searchDialog() && mscore->searchDialog()->isAncestorOf(focusWidget)) &&
+           !(mscore->getDrumrollEditor() && mscore->getDrumrollEditor()->isAncestorOf(focusWidget)) &&
+           !(mscore->getPianorollEditor() && mscore->getPianorollEditor()->isAncestorOf(focusWidget))) {
             mscore->activateWindow();
             w->setFocus();
             }
+#if 0
+      else if (focusWidget == w) {
+            w->clearFocus();
+            w->setFocus();
+            }
+#endif
+
+      // Try to send message to the screen reader. Note that NVDA will
+      // ignore the message if it is the same as the previous message.
+      updateAccessibility();
+
+#if defined(Q_OS_WIN)
+      // HACK: send the message again after a short delay to force NVDA
+      // to read it even if it is the same as before. This is useful when
+      // cursoring through a word with repeated characters, such as "food".
+      // Without this hack NVDA would say "f", "o", *silence*, "d".
+      QTimer::singleShot(0, this, &ScoreAccessibility::updateAccessibility);
+#endif
+      }
+
+void ScoreAccessibility::updateAccessibility()
+      {
+      ScoreView* w = static_cast<MuseScore*>(mainWindow)->currentScoreView();
+      if (!w)
+            return;
+
       QObject* obj = static_cast<QObject*>(w);
-      QAccessibleValueChangeEvent ev(obj, w->score()->accessibleInfo());
-      QAccessible::updateAccessibility(&ev);
+      QAccessibleValueChangeEvent vcev(obj, w->score()->accessibleInfo());
+      QAccessible::updateAccessibility(&vcev);
+      // TODO:
+      // some screenreaders may respond better to other events
+      // the version of Qt used may also be relevant, and platform too
+      //QAccessibleEvent ev1(obj, QAccessible::NameChanged);
+      //QAccessible::updateAccessibility(&ev1);
+      //QAccessibleEvent ev2(obj, QAccessible::DescriptionChanged);
+      //QAccessible::updateAccessibility(&ev2);
       }
 
 std::pair<int, float> ScoreAccessibility::barbeat(Element *e)
@@ -300,17 +452,17 @@ std::pair<int, float> ScoreAccessibility::barbeat(Element *e)
             beat = -1;
             ticks = 0;
             }
-      return pair<int,float>(bar + 1, beat + 1 + ticks / static_cast<float>(ticksB));
+      return std::pair<int,float>(bar + 1, beat + 1 + ticks / static_cast<float>(ticksB));
       }
 
 void ScoreAccessibility::makeReadable(QString& s)
       {
       static std::vector<std::pair<QString, QString>> unicodeReplacements {
-            { "♭", tr(" flat") },
-            { "♮", tr(" natural") },
-            { "♯", tr(" sharp") },
-            { "𝄫", tr(" double flat") },
-            { "𝄪", tr(" double sharp") },
+            { "♭", " " + tr("flat") },
+            { "♮", " " + tr("natural") },
+            { "♯", " " + tr("sharp") },
+            { "𝄫", " " + tr("double flat") },
+            { "𝄪", " " + tr("double sharp") },
       };
 
       if (!QAccessible::isActive())

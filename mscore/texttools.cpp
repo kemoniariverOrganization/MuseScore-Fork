@@ -17,6 +17,8 @@
 //  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 //=============================================================================
 
+#include "log.h"
+
 #include "texttools.h"
 #include "icons.h"
 #include "libmscore/text.h"
@@ -53,54 +55,49 @@ TextTools::TextTools(QWidget* parent)
    : QDockWidget(parent)
       {
       setObjectName("text-tools");
-      setWindowTitle(tr("Text Tools"));
       setAllowedAreas(Qt::DockWidgetAreas(Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea));
       setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
 
       text = nullptr;
       cursor = nullptr;
 
-      QToolBar* tb = new QToolBar(tr("Text Edit"));
-      tb->setIconSize(QSize(preferences.getInt(PREF_UI_THEME_ICONWIDTH) * guiScaling, preferences.getInt(PREF_UI_THEME_ICONHEIGHT) * guiScaling));
+      toolbar = new QToolBar(tr("Text Edit"));
+      toolbar->setIconSize(QSize(preferences.getInt(PREF_UI_THEME_ICONWIDTH) * guiScaling,
+                                 preferences.getInt(PREF_UI_THEME_ICONHEIGHT) * guiScaling));
 
       showKeyboard = getAction("show-keys");
       showKeyboard->setCheckable(true);
-      tb->addAction(showKeyboard);
+      toolbar->addAction(showKeyboard);
 
-      typefaceBold = tb->addAction(*icons[int(Icons::textBold_ICON)], "");
-      typefaceBold->setToolTip(tr("Bold"));
+      typefaceBold = toolbar->addAction(*icons[int(Icons::textBold_ICON)], "");
       typefaceBold->setCheckable(true);
 
-      typefaceItalic = tb->addAction(*icons[int(Icons::textItalic_ICON)], "");
-      typefaceItalic->setToolTip(tr("Italic"));
+      typefaceItalic = toolbar->addAction(*icons[int(Icons::textItalic_ICON)], "");
       typefaceItalic->setCheckable(true);
 
-      typefaceUnderline = tb->addAction(*icons[int(Icons::textUnderline_ICON)], "");
-      typefaceUnderline->setToolTip(tr("Underline"));
+      typefaceUnderline = toolbar->addAction(*icons[int(Icons::textUnderline_ICON)], "");
       typefaceUnderline->setCheckable(true);
 
-      tb->addSeparator();
+      toolbar->addSeparator();
 
-      typefaceSubscript   = tb->addAction(*icons[int(Icons::textSub_ICON)], "");
-      typefaceSubscript->setToolTip(tr("Subscript"));
+      typefaceSubscript = toolbar->addAction(*icons[int(Icons::textSub_ICON)], "");
       typefaceSubscript->setCheckable(true);
 
-      typefaceSuperscript = tb->addAction(*icons[int(Icons::textSuper_ICON)], "");
-      typefaceSuperscript->setToolTip(tr("Superscript"));
+      typefaceSuperscript = toolbar->addAction(*icons[int(Icons::textSuper_ICON)], "");
       typefaceSuperscript->setCheckable(true);
 
-      tb->addSeparator();
+      toolbar->addSeparator();
 
       typefaceFamily = new QFontComboBox(this);
       typefaceFamily->setEditable(false);
-      tb->addWidget(typefaceFamily);
+      toolbar->addWidget(typefaceFamily);
 
       typefaceSize = new QDoubleSpinBox(this);
       typefaceSize->setFocusPolicy(Qt::ClickFocus);
       typefaceSize->setMinimum(1);
-      tb->addWidget(typefaceSize);
+      toolbar->addWidget(typefaceSize);
 
-      setWidget(tb);
+      setWidget(toolbar);
       QWidget* w = new QWidget(this);
       setTitleBarWidget(w);
       titleBarWidget()->hide();
@@ -113,6 +110,33 @@ TextTools::TextTools(QWidget* parent)
       connect(typefaceSubscript,   SIGNAL(triggered(bool)), SLOT(subscriptClicked(bool)));
       connect(typefaceSuperscript, SIGNAL(triggered(bool)), SLOT(superscriptClicked(bool)));
       connect(showKeyboard,        SIGNAL(toggled(bool)),   SLOT(showKeyboardClicked(bool)));
+      
+      retranslate();
+      }
+
+//---------------------------------------------------------
+//   retranslate
+//---------------------------------------------------------
+
+void TextTools::retranslate()
+      {
+      setWindowTitle(tr("Text Tools"));
+      toolbar->setWindowTitle(tr("Text Edit"));
+      typefaceBold->setToolTip(tr("Bold"));
+      typefaceItalic->setToolTip(tr("Italic"));
+      typefaceSubscript->setToolTip(tr("Subscript"));
+      typefaceSuperscript->setToolTip(tr("Superscript"));
+      }
+
+//---------------------------------------------------------
+//   changeEvent
+//---------------------------------------------------------
+
+void TextTools::changeEvent(QEvent* event)
+      {
+      QDockWidget::changeEvent(event);
+      if (event->type() == QEvent::LanguageChange)
+            retranslate();
       }
 
 //---------------------------------------------------------
@@ -139,7 +163,14 @@ void TextTools::blockAllSignals(bool val)
 void TextTools::updateTools(EditData& ed)
       {
       text   = toTextBase(ed.element);
+      IF_ASSERT_FAILED(text) {
+            return;
+            }
+
       cursor = text->cursor(ed);
+      IF_ASSERT_FAILED(cursor) {
+            return;
+            }
 
       blockAllSignals(true);
       CharFormat* format = cursor->format();
@@ -185,6 +216,9 @@ void TextTools::layoutText()
 
 void TextTools::sizeChanged(double value)
       {
+      IF_ASSERT_FAILED(cursor) {
+            return;
+            }
       cursor->setFormat(FormatId::FontSize, value);
       cursor->format()->setFontSize(value);
       updateText();
@@ -196,7 +230,10 @@ void TextTools::sizeChanged(double value)
 
 void TextTools::fontChanged(const QFont& f)
       {
-      if (text)
+      //! REVIEW An explanation is needed why only in this one method
+      //! it is assumed that the cursor may not be,
+      //! and that this is a normal situation, and not an exception (no assertion)
+      if (cursor)
             cursor->setFormat(FormatId::FontFamily, f.family());
       if (textPalette)
             textPalette->setFont(f.family());
@@ -209,6 +246,9 @@ void TextTools::fontChanged(const QFont& f)
 
 void TextTools::boldClicked(bool val)
       {
+      IF_ASSERT_FAILED(cursor) {
+            return;
+            }
       cursor->setFormat(FormatId::Bold, val);
       updateText();
       }
@@ -249,6 +289,9 @@ void TextTools::toggleUnderline()
 
 void TextTools::underlineClicked(bool val)
       {
+      IF_ASSERT_FAILED(cursor) {
+            return;
+            }
       cursor->setFormat(FormatId::Underline, val);
       updateText();
       }
@@ -259,6 +302,9 @@ void TextTools::underlineClicked(bool val)
 
 void TextTools::italicClicked(bool val)
       {
+      IF_ASSERT_FAILED(cursor) {
+            return;
+            }
       cursor->setFormat(FormatId::Italic, val);
       updateText();
       }
@@ -269,6 +315,9 @@ void TextTools::italicClicked(bool val)
 
 void TextTools::subscriptClicked(bool val)
       {
+      IF_ASSERT_FAILED(cursor) {
+            return;
+            }
       cursor->setFormat(FormatId::Valign, int(val ? VerticalAlignment::AlignSubScript : VerticalAlignment::AlignNormal));
       typefaceSuperscript->blockSignals(true);
       typefaceSuperscript->setChecked(false);
@@ -282,6 +331,9 @@ void TextTools::subscriptClicked(bool val)
 
 void TextTools::superscriptClicked(bool val)
       {
+      IF_ASSERT_FAILED(cursor) {
+            return;
+            }
       cursor->setFormat(FormatId::Valign, int(val ? VerticalAlignment::AlignSuperScript : VerticalAlignment::AlignNormal));
       typefaceSubscript->blockSignals(true);
       typefaceSubscript->setChecked(false);
@@ -296,6 +348,9 @@ void TextTools::superscriptClicked(bool val)
 void TextTools::showKeyboardClicked(bool val)
       {
       if (val) {
+            IF_ASSERT_FAILED(cursor) {
+                  return;
+                  }
             if (textPalette == 0)
                   textPalette = new TextPalette(mscore);
             textPalette->setText(text);
@@ -308,4 +363,3 @@ void TextTools::showKeyboardClicked(bool val)
             }
       }
 }
-

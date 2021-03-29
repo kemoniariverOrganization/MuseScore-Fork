@@ -37,8 +37,12 @@ void MuseScore::createNewWorkspace()
 
 void MuseScore::editWorkspace()
       {
-      if (!WorkspacesManager::currentWorkspace() && !WorkspacesManager::currentWorkspace()->readOnly())
+      if (!WorkspacesManager::currentWorkspace())
             return;
+
+      if (WorkspacesManager::currentWorkspace()->readOnly())
+            return;
+
       if (!_workspaceDialog)
             _workspaceDialog = new WorkspaceDialog();
 
@@ -149,8 +153,8 @@ void WorkspaceDialog::accepted()
             mscore->changeWorkspace(newWorkspace);
             preferences.updateLocalPreferences();
             }
-            
-      preferences.setPreference(PREF_APP_WORKSPACE, WorkspacesManager::currentWorkspace()->name());
+
+      preferences.setPreference(PREF_APP_WORKSPACE, WorkspacesManager::currentWorkspace()->id());
       emit mscore->workspacesChanged();
       close();
       }

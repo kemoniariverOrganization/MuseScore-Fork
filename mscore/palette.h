@@ -96,6 +96,7 @@ class Palette : public QWidget {
 
       bool _moreElements;
       bool _showContextMenu { true };
+      bool _isSymbolsPaletteInMasterPalette { false };
 
       virtual void paintEvent(QPaintEvent*) override;
       virtual void mousePressEvent(QMouseEvent*) override;
@@ -135,7 +136,7 @@ class Palette : public QWidget {
       void nextPaletteElement();
       void prevPaletteElement();
       void applyPaletteElement();
-      static bool applyPaletteElement(Element* element, Qt::KeyboardModifiers modifiers = 0);
+      static bool applyPaletteElement(Element* element, Qt::KeyboardModifiers modifiers = {});
       PaletteCell* append(Element*, const QString& name, QString tag = QString(),
          qreal mag = 1.0);
       PaletteCell* add(int idx, Element*, const QString& name,
@@ -183,6 +184,7 @@ class Palette : public QWidget {
       void setMoreElements(bool val);
       bool filter(const QString& text);
       void setShowContextMenu(bool val) { _showContextMenu = val; }
+      void setIsSymbolsPaletteInMasterPalette(bool val) { _isSymbolsPaletteInMasterPalette = val; }
 
       static qreal guiMag();
       int gridWidthM() const  { return hgrid * guiMag(); }

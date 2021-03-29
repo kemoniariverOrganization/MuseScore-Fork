@@ -21,6 +21,7 @@
 
 #include "globals.h"
 #include "musescore.h"
+#include "palette.h"
 #include "preferences.h"
 #include "shortcut.h"
 
@@ -32,6 +33,8 @@
 #include "libmscore/mscore.h"
 #include "libmscore/score.h"
 #include "libmscore/textbase.h"
+#include "libmscore/element.h"
+#include "libmscore/bracket.h"
 
 #include "thirdparty/qzip/qzipreader_p.h"
 #include "thirdparty/qzip/qzipwriter_p.h"
@@ -122,9 +125,11 @@ const char* PaletteCell::translationContext() const
       switch (type) {
             case ElementType::ACCIDENTAL:
             case ElementType::ARTICULATION:
+            case ElementType::BAR_LINE:
             case ElementType::BREATH:
             case ElementType::FERMATA:
             case ElementType::SYMBOL:
+            case ElementType::TIMESIG:
                   return "symUserNames"; // libmscore/sym.cpp, Sym::symUserNames
             case ElementType::CLEF:
                   return "clefTable"; // libmscore/clef.cpp, ClefInfo::clefTable[]
@@ -401,6 +406,12 @@ bool PalettePanel::read(XmlReader& e)
                   PaletteCellPtr cell(new PaletteCell);
                   if (!cell->read(e))
                         continue;
+
+                  auto cellHandler = cellHandlerByPaletteType(_type);
+
+                  if (cellHandler)
+                        cellHandler(cell.get());
+
                   cells.push_back(std::move(cell));
                   }
             else
@@ -639,6 +650,12 @@ PaletteCell* PalettePanel::insert(int idx, Element* e, const QString& name, QStr
       if (e)
             e->layout(); // layout may be important for comparing cells, e.g. filtering "More" popup content
       PaletteCell* cell = new PaletteCell(std::unique_ptr<Element>(e), name, tag, mag);
+
+      auto cellHandler = cellHandlerByPaletteType(_type);
+
+      if (cellHandler)
+            cellHandler(cell);
+
       cells.emplace(cells.begin() + idx, cell);
       return cell;
       }
@@ -652,6 +669,12 @@ PaletteCell* PalettePanel::append(Element* e, const QString& name, QString tag, 
       if (e)
             e->layout(); // layout may be important for comparing cells, e.g. filtering "More" popup content
       PaletteCell* cell = new PaletteCell(std::unique_ptr<Element>(e), name, tag, mag);
+
+      auto cellHandler = cellHandlerByPaletteType(_type);
+
+      if (cellHandler)
+            cellHandler(cell);
+
       cells.emplace_back(cell);
       return cell;
       }
@@ -703,6 +726,15 @@ bool PalettePanel::insertCell(int idx, PaletteCellPtr cell)
       cells.insert(cells.begin() + idx, std::move(cell));
 
       return true;
+      }
+
+//---------------------------------------------------------
+//   PalettePanel::scaledGridSize
+//---------------------------------------------------------
+
+QSize PalettePanel::scaledGridSize() const
+      {
+      return gridSize() * Palette::guiMag();
       }
 
 //---------------------------------------------------------
@@ -839,6 +871,25 @@ PalettePanel::Type PalettePanel::guessType() const
       return Type::Custom;
       }
 
+std::function<void (PaletteCell*)> PalettePanel::cellHandlerByPaletteType(const PalettePanel::Type& type) const
+      {
+      switch (type) {
+            case Type::Bracket: return [](PaletteCell* cellPtr) {
+                  if (!cellPtr || !cellPtr->element || !cellPtr->element.get()->isBracket())
+                        return;
+
+                  Bracket* bracket = toBracket(cellPtr->element.get());
+
+                  if (bracket->bracketType() == BracketType::BRACE) {
+                        bracket->setStaffSpan(0, 1);
+                        cellPtr->mag = 1.2;
+                        }
+                  };
+            default:
+                  return nullptr;
+            }
+      }
+
 //---------------------------------------------------------
 //   PalettePanel::contentType
 ///   Returns palette type if it is defined or deduces it
@@ -929,16 +980,211 @@ void PaletteTree::retranslate()
       }
 
 //---------------------------------------------------------
+//   paintIconElement
+/// Paint an icon element so that it fills a QRect, preserving
+/// aspect ratio, and leaving a small margin around the edges.
+//---------------------------------------------------------
+
+static void paintIconElement(QPainter& painter, const QRect& rect, Element* e)
+      {
+      Q_ASSERT(e && e->isIcon());
+      painter.save(); // so we can restore it after we are done using it
+
+      constexpr int margin = 4.0;
+      qreal extent = qMin(rect.height(), rect.width()) - margin;
+
+      Icon* icon = toIcon(e);
+      icon->setExtent(extent);
+
+      extent /= 2.0;
+      QPointF iconCenter(extent, extent);
+
+      painter.translate(rect.center() - iconCenter); // change coordinates
+      icon->draw(&painter);
+      painter.restore(); // restore coordinates
+      }
+
+//---------------------------------------------------------
 //   paintPaletteElement
+/// Function object for use with Element::scanElements() to
+/// paint an element and its child elements.
 //---------------------------------------------------------
 
 static void paintPaletteElement(void* data, Element* e)
       {
       QPainter* p = static_cast<QPainter*>(data);
       p->save();
-      p->translate(e->pos());
+      p->translate(e->pos()); // necessary for drawing child elements
       e->draw(p);
       p->restore();
+      }
+
+//---------------------------------------------------------
+//   paintScoreElement
+/// Paint a non-icon element centered at the origin of the
+/// painter's coordinate system. If alignToStaff is true then
+/// the element is only centered horizontally; i.e. vertical
+/// alignment is unchanged from the default so that item will
+/// appear at the correct height on the staff.
+//---------------------------------------------------------
+
+static void paintScoreElement(QPainter& p, Element* e, qreal spatium, bool alignToStaff)
+      {
+      Q_ASSERT(e && !e->isIcon());
+      p.save(); // so we can restore painter after we are done using it
+
+      const qreal sizeRatio = spatium / gscore->spatium();
+      p.scale(sizeRatio, sizeRatio); // scale coordinates so element is drawn at correct size
+
+      e->layout(); // calculate bbox
+
+      //! NOTE `static_cast<const Element*>(e)` is needed for the `const QRectF& bbox() const` method to be called
+      //! This method is overridden for some elements, in particular for Glissando
+      QPointF origin = static_cast<const Element* >(e)->bbox().center();
+
+      if (alignToStaff) {
+            origin.setY(0.0); // y = 0 is position of the element's parent.
+            // If the parent is the staff (or a segment on the staff) then
+            // y = 0 corresponds to the position of the top staff line.
+            }
+
+      p.translate(-1.0 * origin); // shift coordinates so element is drawn at correct position
+
+      e->scanElements(&p, paintPaletteElement);
+      p.restore(); // return painter to saved initial state
+      }
+
+//---------------------------------------------------------
+//   paintStaff
+/// Paint a 5 line staff centered within a QRect and return the
+/// distance from the top of the QRect to the uppermost staff line.
+//---------------------------------------------------------
+
+static qreal paintStaff(QPainter& p, const QRect& rect, qreal spatium)
+      {
+      p.save(); // so we can restore painter after we are done using it
+      QPen pen(Qt::black);
+      pen.setWidthF(MScore::defaultStyle().value(Sid::staffLineWidth).toDouble() * spatium);
+      p.setPen(pen);
+
+      constexpr int numStaffLines = 5;
+      const qreal staffHeight = spatium * (numStaffLines - 1);
+      const qreal topLineDist = rect.center().y() - (staffHeight / 2.0);
+
+      // lines bounded horizontally by edge of target (with small margin)
+      constexpr qreal margin = 3.0;
+      const qreal x1 = rect.left() + margin;
+      const qreal x2 = rect.right() - margin;
+
+      // draw staff lines with middle line centered vertically on target
+      qreal y = topLineDist;
+      for (int i = 0; i < numStaffLines; ++i) {
+            p.drawLine(QLineF(x1, y, x2, y));
+            y += spatium;
+            }
+
+      p.restore(); // return painter to saved initial state
+      return topLineDist;
+      }
+
+//---------------------------------------------------------
+//   paintBackground
+//---------------------------------------------------------
+
+static void paintBackground(QPainter& p, const QRect& r, bool selected, bool current)
+      {
+      QColor c(MScore::selectColor[0]);
+      if (current || selected) {
+            c.setAlpha(selected ? 100 : 60);
+            p.fillRect(r, c);
+            }
+      }
+
+//---------------------------------------------------------
+//   paintTag
+//---------------------------------------------------------
+
+static void paintTag(QPainter& painter, const QRect& rect, QString tag)
+      {
+      if (tag.isEmpty())
+            return;
+
+      painter.save(); // so we can restore it after we are done using it
+      painter.setPen(Qt::darkGray);
+      QFont f(painter.font());
+      f.setPointSize(12);
+      painter.setFont(f);
+
+      if (tag == "ShowMore")
+            painter.drawText(rect, Qt::AlignCenter, "???");
+      else
+            painter.drawText(rect, Qt::AlignLeft | Qt::AlignTop, tag);
+
+      painter.restore(); // return to saved initial state (undo pen and font changes, etc.)
+      }
+
+//---------------------------------------------------------
+//   elementColor
+//---------------------------------------------------------
+
+static QColor elementColor(Element* el, bool selected)
+      {
+      Q_ASSERT(el);
+
+      if (selected)
+            return QApplication::palette(mscore).color(QPalette::Normal, QPalette::HighlightedText);
+
+      if (el->isChord()) {
+            return el->curColor(); // Show voice colors for notes.
+            // This is used in the "drumtools" palette that appears
+            // when entering notes on an unpitched percussion staff.
+            }
+
+      return QApplication::palette(mscore).color(QPalette::Normal, QPalette::Text);
+      }
+
+//---------------------------------------------------------
+//   PaletteCellIconEngine::paintCell
+//---------------------------------------------------------
+
+void PaletteCellIconEngine::paintCell(QPainter& p, const QRect& r, bool selected, bool current) const
+      {
+      const qreal _yOffset = 0.0; // TODO
+
+      paintBackground(p, r, selected, current);
+
+      if (!_cell)
+            return;
+
+      paintTag(p, r, _cell->tag);
+
+      Element* el = _cell->element.get();
+      if (!el)
+            return;
+
+      if (el->isIcon()) {
+            paintIconElement(p, r, el);
+            return; // never draw staff for icon elements
+            }
+
+      const bool drawStaff = _cell->drawStaff;
+      const qreal spatium = PALETTE_SPATIUM * _extraMag * _cell->mag;
+
+      QPointF origin = r.center(); // draw element at center of cell by default
+      p.translate(0, _yOffset * spatium); // offset both element and staff
+
+      if (drawStaff) {
+            const qreal topLinePos = paintStaff(p, r, spatium); // draw dummy staff lines onto rect.
+            origin.setY(topLinePos); // vertical position relative to staff instead of cell center.
+            }
+
+      p.translate(origin);
+      p.translate(_cell->xoffset * spatium, _cell->yoffset * spatium); // additional offset for element only
+
+      QColor color(elementColor(el, selected));
+      p.setPen(QPen(color));
+
+      paintScoreElement(p, el, spatium, drawStaff);
       }
 
 //---------------------------------------------------------
@@ -947,125 +1193,11 @@ static void paintPaletteElement(void* data, Element* e)
 
 void PaletteCellIconEngine::paint(QPainter* painter, const QRect& r, QIcon::Mode mode, QIcon::State state)
       {
-      const bool selected = mode == QIcon::Selected;
-
-      const qreal oldSpatium = gscore->spatium();
-
-      qreal _spatium = gscore->spatium();
-//      qreal mag      = PALETTE_SPATIUM * _extraMag * guiScaling / _spatium;
-      qreal mag      = PALETTE_SPATIUM * _extraMag / _spatium;
-      gscore->setSpatium(SPATIUM20);
-
       QPainter& p = *painter;
-
-      const int hgrid = r.width();
-      const int vgrid = r.height();
-
-      qreal dy = lrint(2 * PALETTE_SPATIUM * _extraMag);
-
-      //
-      // draw symbols
-      //
-
-      // QPen pen(palette().color(QPalette::Normal, QPalette::Text));
-      QPen pen(Qt::black);
-      pen.setWidthF(MScore::defaultStyle().value(Sid::staffLineWidth).toDouble() * PALETTE_SPATIUM * _extraMag);
-
-      const qreal _yOffset = 0.0; // TODO
-
-      const int yoffset  = gscore->spatium() * _yOffset;
-      const QRect rShift = r.translated(0, yoffset);
-      p.setPen(pen);
-      QColor c(MScore::selectColor[0]);
-      if (selected) {
-            c.setAlpha(100);
-            p.fillRect(r, c);
-            }
-      else if (state == QIcon::On) {
-            c.setAlpha(60);
-            p.fillRect(r, c);
-            }
-
-      PaletteCellConstPtr cc = cell();
-
-      if (!cc)
-            return;
-
-      QString tag = cc->tag;
-      if (!tag.isEmpty()) {
-            p.setPen(Qt::darkGray);
-            QFont f(p.font());
-            f.setPointSize(12);
-            p.setFont(f);
-            if (tag == "ShowMore")
-                  p.drawText(r, Qt::AlignCenter, "???");
-            else
-                  p.drawText(rShift, Qt::AlignLeft | Qt::AlignTop, tag);
-            }
-
-      p.setPen(pen);
-
-      Element* el = cc->element.get();
-      if (!el)
-            return;
-
-      const bool drawStaff = cc->drawStaff;
-
-      qreal cellMag = cc->mag * mag;
-      if (el->isIcon()) {
-            toIcon(el)->setExtent((hgrid < vgrid ? hgrid : vgrid) - 4);
-            cellMag = 1.0;
-            }
-      el->layout();
-
-      if (drawStaff) {
-            qreal y = r.y() + vgrid * .5 - dy + _yOffset * _spatium * cellMag;
-            qreal x = r.x() + 3;
-            qreal w = hgrid - 6;
-            for (int i = 0; i < 5; ++i) {
-                  qreal yy = y + PALETTE_SPATIUM * i * _extraMag;
-                  p.drawLine(QLineF(x, yy, x + w, yy));
-                  }
-            }
-      p.save();
-      p.setRenderHint(QPainter::Antialiasing, true); // TODO: needed?
-      p.scale(cellMag, cellMag);
-
-      double gw = hgrid / cellMag;
-      double gh = vgrid / cellMag;
-      const double gx = r.x() + cc->xoffset * _spatium;
-      const double gy = r.y() + cc->yoffset * _spatium;
-
-      double sw = el->width();
-      double sh = el->height();
-      double sy;
-
-      if (drawStaff)
-            sy = gy + gh * .5 - 2.0 * _spatium;
-      else
-            sy  = gy + (gh - sh) * .5 - el->bbox().y();
-      double sx  = gx + (gw - sw) * .5 - el->bbox().x();
-
-      sy += _yOffset * _spatium;
-
-      p.translate(sx, sy);
-
-      QColor color;
-      if (selected)
-            color = QApplication::palette(mscore).color(QPalette::Normal, QPalette::HighlightedText);
-      else {
-            // show voice colors for notes
-            if (el->isChord())
-                  color = el->curColor();
-            else
-                  color = QApplication::palette(mscore).color(QPalette::Normal, QPalette::Text);
-            }
-
-      p.setPen(QPen(color));
-      el->scanElements(&p, paintPaletteElement);
-      p.restore();
-
-      gscore->setSpatium(oldSpatium);
+      p.save(); // so we can restore it later
+      p.setRenderHint(QPainter::Antialiasing, true);
+      paintCell(p, r, mode == QIcon::Selected, state == QIcon::On);
+      p.restore(); // return painter to saved initial state (undo any changes to pen, coordinates, font, etc.)
       }
 
 } // namespace Ms

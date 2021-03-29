@@ -13,10 +13,10 @@
 #include "synthcontrol.h"
 #include "musescore.h"
 #include "seq.h"
-#include "synthesizer/msynthesizer.h"
-#include "synthesizer/synthesizer.h"
-#include "synthesizer/synthesizergui.h"
-#include "mixer.h"
+#include "audio/midi/msynthesizer.h"
+#include "audio/midi/synthesizer.h"
+#include "audio/midi/synthesizergui.h"
+#include "mixer/mixer.h"
 #include "file.h"
 #include "icons.h"
 #include "libmscore/score.h"
@@ -173,10 +173,7 @@ void MuseScore::showSynthControl(bool val)
             mscore->stackUnder(synthControl);
             synthControl->setScore(cs);
             connect(synti,        SIGNAL(gainChanged(float)), synthControl, SLOT(setGain(float)));
-            connect(synthControl, SIGNAL(gainChanged(float)), synti, SLOT(setGain(float)));
             connect(synthControl, SIGNAL(closed(bool)), a,     SLOT(setChecked(bool)));
-            if (mixer)
-                  connect(synthControl, SIGNAL(soundFontChanged()), mixer, SLOT(patchListChanged()));
             }
       synthControl->setVisible(val);
       }

@@ -11,6 +11,7 @@
 //=============================================================================
 
 #include "hairpin.h"
+#include "dynamichairpingroup.h"
 #include "style.h"
 #include "xml.h"
 #include "utils.h"
@@ -22,6 +23,7 @@
 #include "staff.h"
 #include "mscore.h"
 #include "chord.h"
+#include "changeMap.h"
 
 namespace Ms {
 
@@ -50,18 +52,6 @@ static const ElementStyle hairpinStyle {
       { Sid::hairpinPlacement,                   Pid::PLACEMENT                  },
       { Sid::hairpinPosBelow,                    Pid::OFFSET                     },
       { Sid::hairpinLineStyle,                   Pid::LINE_STYLE                 },
-      };
-
-//---------------------------------------------------------
-//   changeMethodTable
-//---------------------------------------------------------
-
-const std::vector<Hairpin::VeloMethodItem> Hairpin::veloChangeMethodTable {
-      { VeloChangeMethod::NORMAL,           "normal"      },
-      { VeloChangeMethod::EASE_IN,          "ease-in"     },
-      { VeloChangeMethod::EASE_OUT,         "ease-out"    },
-      { VeloChangeMethod::EASE_IN_OUT,      "ease-in-out" },
-      { VeloChangeMethod::EXPONENTIAL,      "exponential" },
       };
 
 //---------------------------------------------------------
@@ -412,6 +402,17 @@ std::vector<QPointF> HairpinSegment::gripsPositions(const EditData&) const
       }
 
 //---------------------------------------------------------
+//   getDragGroup
+//---------------------------------------------------------
+
+std::unique_ptr<ElementGroup> HairpinSegment::getDragGroup(std::function<bool(const Element*)> isDragged)
+      {
+      if (auto g = HairpinWithDynamicsDragGroup::detectFor(this, isDragged))
+            return g;
+      return TextLineBaseSegment::getDragGroup(isDragged);
+      }
+
+//---------------------------------------------------------
 //   startEditDrag
 //---------------------------------------------------------
 
@@ -580,7 +581,7 @@ Hairpin::Hairpin(Score* s)
       _veloChange            = 0;
       _dynRange              = Dynamic::Range::PART;
       _singleNoteDynamics    = true;
-      _veloChangeMethod      = VeloChangeMethod::NORMAL;
+      _veloChangeMethod      = ChangeMethod::NORMAL;
       }
 
 //---------------------------------------------------------
@@ -646,33 +647,6 @@ LineSegment* Hairpin::createLineSegment()
       }
 
 //---------------------------------------------------------
-//   veloChangeMethodToName
-//---------------------------------------------------------
-
-QString Hairpin::veloChangeMethodToName(VeloChangeMethod method)
-      {
-      for (auto i : Hairpin::veloChangeMethodTable) {
-            if (i.method == method)
-                  return i.name;
-            }
-      qFatal("Unrecognised velo change method!");
-      return "none"; // silence a compiler warning
-      }
-
-//---------------------------------------------------------
-//   nameToVeloChangeMethod
-//---------------------------------------------------------
-
-VeloChangeMethod Hairpin::nameToVeloChangeMethod(QString name)
-      {
-      for (auto i : Hairpin::veloChangeMethodTable) {
-            if (i.name == name)
-                  return i.method;
-            }
-      return VeloChangeMethod::NORMAL;   // default
-      }
-
-//---------------------------------------------------------
 //   write
 //---------------------------------------------------------
 
@@ -730,7 +704,7 @@ void Hairpin::read(XmlReader& e)
             else if (tag == "singleNoteDynamics")
                   _singleNoteDynamics = e.readBool();
             else if (tag == "veloChangeMethod")
-                  _veloChangeMethod = nameToVeloChangeMethod(e.readElementText());
+                  _veloChangeMethod = ChangeMap::nameToChangeMethod(e.readElementText());
             else if (!TextLineBase::readProperties(e))
                   e.unknown();
             }
@@ -794,7 +768,7 @@ bool Hairpin::setProperty(Pid id, const QVariant& v)
                   _singleNoteDynamics = v.toBool();
                   break;
             case Pid::VELO_CHANGE_METHOD:
-                  _veloChangeMethod = VeloChangeMethod(v.toInt());
+                  _veloChangeMethod = ChangeMethod(v.toInt());
                   break;
             default:
                   return TextLineBase::setProperty(id, v);
@@ -866,7 +840,7 @@ QVariant Hairpin::propertyDefault(Pid id) const
                   return true;
 
             case Pid::VELO_CHANGE_METHOD:
-                  return int(VeloChangeMethod::NORMAL);
+                  return int(ChangeMethod::NORMAL);
 
             case Pid::PLACEMENT:
                   return score()->styleV(Sid::hairpinPlacement);

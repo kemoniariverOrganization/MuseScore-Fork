@@ -589,6 +589,38 @@ PaletteWorkspace::PaletteWorkspace(PaletteTreeModel* user, PaletteTreeModel* mas
       {
       if (userPalette)
             connect(userPalette, &PaletteTreeModel::treeChanged, this, &PaletteWorkspace::userPaletteChanged);
+
+      preferencesListenerID = preferences.addOnSetListener([this](const QString& key, const QVariant& /*value*/) {
+            if (key == PREF_APP_USESINGLEPALETTE)
+                  emit singlePaletteChanged();
+            });
+      }
+
+//---------------------------------------------------------
+//   ~PaletteWorkspace
+//---------------------------------------------------------
+
+PaletteWorkspace::~PaletteWorkspace()
+      {
+      preferences.removeOnSetListener(preferencesListenerID);
+      }
+
+//---------------------------------------------------------
+//   PaletteWorkspace::singlePalette
+//---------------------------------------------------------
+
+bool PaletteWorkspace::singlePalette() const
+      {
+      return preferences.getBool(PREF_APP_USESINGLEPALETTE);
+      }
+
+void PaletteWorkspace::setSinglePalette(bool val) {
+      if (val != singlePalette())
+            preferences.setPreference(PREF_APP_USESINGLEPALETTE, val);
+            // No need to emit `singlePaletteChanged()` here;
+            // that's already done by the `onSetListener` lambda.
+            // That's better, because the signal will also be emitted
+            // when this preference is changed from the Preferences Dialog.
       }
 
 //---------------------------------------------------------
@@ -978,5 +1010,23 @@ bool PaletteWorkspace::read(XmlReader& e)
       setUserPaletteTree(std::move(tree));
 
       return true;
+      }
+
+//---------------------------------------------------------
+//   PaletteWorkspace::needsItemDestructionAccessibilityWorkaround
+///   Checks whether workaround for palette search crash
+///   with NVDA is needed, see issue #298899.
+//---------------------------------------------------------
+
+bool PaletteWorkspace::needsItemDestructionAccessibilityWorkaround() const
+      {
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 11, 0))
+      // Qt switched to a new accessibility backend since 5.11
+      // and no crashes are reported for 5.12 so presumably
+      // the workaround is not needed since Qt 5.11.
+      return false;
+#else
+      return QAccessible::isActive();
+#endif
       }
 } // namespace Ms

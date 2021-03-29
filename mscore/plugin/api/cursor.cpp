@@ -25,6 +25,7 @@
 #include "libmscore/system.h"
 #include "libmscore/segment.h"
 #include "libmscore/timesig.h"
+#include "libmscore/tuplet.h"
 
 namespace Ms {
 namespace PluginAPI {
@@ -54,11 +55,18 @@ Score* Cursor::score() const
 
 void Cursor::setScore(Ms::Score* s)
       {
+      if (_score == s)
+            return;
+
       _score = s;
-      if (_score) {
-            _score->inputState().setTrack(_track);
-            _score->inputState().setSegment(_segment);
-            }
+
+      switch (_inputStateMode) {
+            case INPUT_STATE_INDEPENDENT:
+                  is.reset(new InputState);
+                  break;
+            case INPUT_STATE_SYNC_WITH_SCORE:
+                  break;
+            };
       }
 
 //---------------------------------------------------------
@@ -68,6 +76,29 @@ void Cursor::setScore(Ms::Score* s)
 void Cursor::setScore(Score* s)
       {
       setScore(s ? s->score() : nullptr);
+      }
+
+//---------------------------------------------------------
+//   inputState
+//---------------------------------------------------------
+
+InputState& Cursor::inputState()
+      {
+      return is ? *is.get() : _score->inputState();
+      }
+
+//---------------------------------------------------------
+//   setInputStateMode
+//---------------------------------------------------------
+
+void Cursor::setInputStateMode(InputStateMode val)
+      {
+      if (val == INPUT_STATE_SYNC_WITH_SCORE)
+            is.reset();
+      else
+            is.reset(new InputState);
+
+      _inputStateMode = val;
       }
 
 //---------------------------------------------------------
@@ -88,11 +119,13 @@ void Cursor::rewind(RewindMode mode)
       // rewind to start of score
       //
       if (mode == SCORE_START) {
-            _segment = nullptr;
             Ms::Measure* m = _score->firstMeasure();
             if (m) {
-                  _segment = m->first(_filter);
+                  setSegment(m->first(_filter));
                   nextInTrack();
+                  }
+            else {
+                  setSegment(nullptr);
                   }
             }
       //
@@ -101,8 +134,8 @@ void Cursor::rewind(RewindMode mode)
       else if (mode == SELECTION_START) {
             if (!_score->selection().isRange())
                   return;
-            _segment  = _score->selection().startSegment();
-            _track    = _score->selection().staffStart() * VOICES;
+            setSegment(_score->selection().startSegment());
+            setTrack(_score->selection().staffStart() * VOICES);
             nextInTrack();
             }
       //
@@ -111,11 +144,33 @@ void Cursor::rewind(RewindMode mode)
       else if (mode == SELECTION_END) {
             if (!_score->selection().isRange())
                   return;
-            _segment  = _score->selection().endSegment();
-            _track    = (_score->selection().staffEnd() * VOICES) - 1;  // be sure _track exists
+            setSegment(_score->selection().endSegment());
+            setTrack((_score->selection().staffEnd() * VOICES) - 1);  // be sure _track exists
             }
-      _score->inputState().setTrack(_track);
-      _score->inputState().setSegment(_segment);
+      }
+
+//---------------------------------------------------------
+//   rewindToTick
+///   Rewind cursor to a position defined by tick.
+///   \param tick Determines the position where to move
+///   this cursor.
+///   \see \ref Ms::PluginAPI::Segment::tick "Segment.tick"
+///   \since MuseScore 3.5
+//---------------------------------------------------------
+
+void Cursor::rewindToTick(int tick)
+      {
+      // integer ticks may contain numeric errors so it is
+      // better to search not precisely if possible
+      Ms::Fraction fTick = Ms::Fraction::fromTicks(tick + 1);
+      Ms::Segment* seg = _score->tick2leftSegment(fTick);
+      if (!(seg->segmentType() & _filter)) {
+            // we need another segment type, search by known tick
+            seg = _score->tick2segment(seg->tick(), /* first */ true, _filter);
+            }
+
+      setSegment(seg);
+      nextInTrack();
       }
 
 //---------------------------------------------------------
@@ -128,12 +183,10 @@ void Cursor::rewind(RewindMode mode)
 
 bool Cursor::prev()
       {
-      if (!_segment)
+      if (!segment())
             return false;
       prevInTrack();
-      _score->inputState().setTrack(_track);
-      _score->inputState().setSegment(_segment);
-      return _segment != 0;
+      return segment();
       }
 
 //---------------------------------------------------------
@@ -145,13 +198,11 @@ bool Cursor::prev()
 
 bool Cursor::next()
       {
-      if (!_segment)
+      if (!segment())
             return false;
-      _segment = _segment->next1(_filter);
+      setSegment(segment()->next1(_filter));
       nextInTrack();
-      _score->inputState().setTrack(_track);
-      _score->inputState().setSegment(_segment);
-      return _segment != 0;
+      return segment();
       }
 
 //---------------------------------------------------------
@@ -164,16 +215,16 @@ bool Cursor::next()
 
 bool Cursor::nextMeasure()
       {
-      if (_segment == 0)
+      if (!segment())
             return false;
-      Ms::Measure* m = _segment->measure()->nextMeasure();
+      Ms::Measure* m = segment()->measure()->nextMeasure();
       if (m == 0) {
-            _segment = 0;
+            setSegment(nullptr);
             return false;
             }
-      _segment = m->first(_filter);
+      setSegment(m->first(_filter));
       nextInTrack();
-      return _segment != 0;
+      return segment();
       }
 
 //---------------------------------------------------------
@@ -185,7 +236,7 @@ bool Cursor::nextMeasure()
 void Cursor::add(Element* wrapped)
       {
       Ms::Element* s = wrapped ? wrapped->element() : nullptr;
-      if (!_segment || !s)
+      if (!segment() || !s)
             return;
 
       // Ensure that the object has the expected ownership
@@ -193,6 +244,9 @@ void Cursor::add(Element* wrapped)
             qWarning("Cursor::add: Cannot add this element. The element is already part of the score.");
             return;        // Don't allow operation.
             }
+
+      const int _track = track();
+      Ms::Segment* _segment = segment();
 
       wrapped->setOwnership(Ownership::SCORE);
       s->setScore(_score);
@@ -218,6 +272,7 @@ void Cursor::add(Element* wrapped)
             switch (s->type()) {
                   // To be added at measure level
                   case ElementType::MEASURE_NUMBER:
+                  case ElementType::MMREST_RANGE:
                   case ElementType::SPACER:
                   case ElementType::JUMP:
                   case ElementType::MARKER:
@@ -325,11 +380,120 @@ void Cursor::addNote(int pitch, bool addToChord)
             qWarning("Cursor::addNote: invalid pitch: %d", pitch);
             return;
             }
-      if (!_score->inputState().duration().isValid())
+      if (!segment()) {
+            qWarning("Cursor::addNote: cursor location is undefined, use rewind() to define its location");
+            return;
+            }
+      if (!inputState().duration().isValid())
             setDuration(1, 4);
       NoteVal nval(pitch);
-      _score->addPitch(nval, addToChord);
-      _segment = _score->inputState().segment();
+      _score->addPitch(nval, addToChord, is.get());
+      }
+
+//---------------------------------------------------------
+//   addRest
+///   \brief Adds a rest to the current cursor position.
+///   \details The duration of the added rest equals to
+///   what has been set by the previous setDuration() call.
+///   \since MuseScore 3.5
+//---------------------------------------------------------
+
+void Cursor::addRest()
+      {
+      if (!segment()) {
+            qWarning("Cursor::addRest: cursor location is undefined, use rewind() to define its location");
+            return;
+            }
+      if (!inputState().duration().isValid())
+            setDuration(1, 4);
+      _score->enterRest(inputState().duration(), is.get());
+      }
+
+//---------------------------------------------------------
+//   addTuplet
+///   \brief Adds a tuplet to the current cursor position.
+///   \details This function provides a possibility to setup
+///   the tuplet's ratio to any value (similarly to
+///   Add > Tuplets > Other... dialog in MuseScore).
+///
+///   Examples of most typical usage:
+///   \code
+///   // add a triplet of three eighth notes
+///   cursor.addTuplet(fraction(3, 2), fraction(1, 4));
+///
+///   // add a quintuplet in place of the current chord/rest
+///   var cr = cursor.element;
+///   if (cr)
+///       cursor.addTuplet(fraction(5, 4), cr.duration);
+///   \endcode
+///
+///   \param ratio tuplet ratio. Numerator represents
+///   actual number of notes in this tuplet, denominator is
+///   a number of "normal" notes which correspond to the
+///   same total duration. For example, a triplet has a
+///   ratio of 3/2 as it has 3 notes fitting to the
+///   duration which would normally be occupied by 2 notes
+///   of the same nominal length.
+///   \param duration total duration of the tuplet. To
+///   create a tuplet with duration matching to duration of
+///   existing chord or rest, use its
+///   \ref DurationElement.duration "duration" value as
+///   a parameter.
+///   \since MuseScore 3.5
+///   \see \ref DurationElement.tuplet
+//---------------------------------------------------------
+
+void Cursor::addTuplet(FractionWrapper* ratio, FractionWrapper* duration)
+      {
+      if (!segment()) {
+            qWarning("Cursor::addTuplet: cursor location is undefined, use rewind() to define its location");
+            return;
+            }
+
+      const Ms::Fraction fRatio = ratio->fraction();
+      const Ms::Fraction fDuration = duration->fraction();
+
+      if (!fRatio.isValid() || fRatio.isZero() || fRatio.negative()
+         || !fDuration.isValid() || fDuration.isZero() || fDuration.negative()) {
+            qWarning("Cursor::addTuplet: invalid parameter values: %s, %s", qPrintable(fRatio.toString()), qPrintable(fDuration.toString()));
+            return;
+            }
+
+      Ms::Measure* tupletMeasure = segment()->measure();
+      const Ms::Fraction tupletTick = segment()->tick();
+
+      if (tupletTick + fDuration > tupletMeasure->endTick()) {
+            qWarning(
+               "Cursor::addTuplet: cannot add cross-measure tuplet (measure %d, rel.tick %s, duration %s)",
+               tupletMeasure->no() + 1, qPrintable(segment()->rtick().toString()), qPrintable(fDuration.toString()));
+            return;
+            }
+
+      const Ms::Fraction baseLen = fDuration * Fraction(1, fRatio.denominator());
+      if (!TDuration::isValid(baseLen)) {
+            qWarning("Cursor::addTuplet: cannot create tuplet for ratio %s and duration %s", qPrintable(fRatio.toString()), qPrintable(fDuration.toString()));
+            return;
+            }
+
+      _score->expandVoice(inputState().segment(), inputState().track());
+      Ms::ChordRest* cr = inputState().cr();
+      if (!cr) // shouldn't happen?
+            return;
+
+      _score->changeCRlen(cr, fDuration);
+
+      Ms::Tuplet* tuplet = new Ms::Tuplet(_score);
+      tuplet->setParent(tupletMeasure);
+      tuplet->setTrack(track());
+      tuplet->setTick(tupletTick);
+      tuplet->setRatio(fRatio);
+      tuplet->setTicks(fDuration);
+      tuplet->setBaseLen(baseLen);
+
+      _score->cmdCreateTuplet(cr, tuplet);
+
+      inputState().setSegment(tupletMeasure->tick2segment(tupletTick));
+      inputState().setDuration(baseLen);
       }
 
 //---------------------------------------------------------
@@ -346,7 +510,7 @@ void Cursor::setDuration(int z, int n)
       TDuration d(Fraction(z, n));
       if (!d.isValid())
             d = TDuration(TDuration::DurationType::V_QUARTER);
-      _score->inputState().setDuration(d);
+      inputState().setDuration(d);
       }
 
 //---------------------------------------------------------
@@ -355,7 +519,8 @@ void Cursor::setDuration(int z, int n)
 
 int Cursor::tick()
       {
-      return (_segment) ? _segment->tick().ticks() : 0;
+      const Ms::Segment* seg = segment();
+      return seg ? seg->tick().ticks() : 0;
       }
 
 //---------------------------------------------------------
@@ -382,16 +547,19 @@ qreal Cursor::tempo()
 
 Ms::Element* Cursor::currentElement() const
       {
-      return _segment && _segment->element(_track) ? _segment->element(_track) : nullptr;
+      const int t = track();
+      Ms::Segment* seg = segment();
+      return seg && seg->element(t) ? seg->element(t) : nullptr;
       }
 
 //---------------------------------------------------------
 //   segment
 //---------------------------------------------------------
 
-Segment* Cursor::segment() const
+Segment* Cursor::qmlSegment() const
       {
-      return _segment ? wrap<Segment>(_segment, Ownership::SCORE) : nullptr;
+      Ms::Segment* seg = segment();
+      return seg ? wrap<Segment>(seg, Ownership::SCORE) : nullptr;
       }
 
 //---------------------------------------------------------
@@ -412,22 +580,31 @@ Element* Cursor::element() const
 
 Measure* Cursor::measure() const
       {
-      return _segment ? wrap<Measure>(_segment->measure(), Ownership::SCORE) : nullptr;
+      Ms::Segment* seg = segment();
+      return seg ? wrap<Measure>(seg->measure(), Ownership::SCORE) : nullptr;
+      }
+
+//---------------------------------------------------------
+//   track
+//---------------------------------------------------------
+
+int Cursor::track() const
+      {
+      return inputState().track();
       }
 
 //---------------------------------------------------------
 //   setTrack
 //---------------------------------------------------------
 
-void Cursor::setTrack(int v)
+void Cursor::setTrack(int _track)
       {
-      _track = v;
       int tracks = _score->nstaves() * VOICES;
       if (_track < 0)
             _track = 0;
       else if (_track >= tracks)
             _track = tracks - 1;
-      _score->inputState().setTrack(_track);
+      inputState().setTrack(_track);
       }
 
 //---------------------------------------------------------
@@ -436,13 +613,13 @@ void Cursor::setTrack(int v)
 
 void Cursor::setStaffIdx(int v)
       {
-      _track = v * VOICES + _track % VOICES;
+      int _track = v * VOICES + track() % VOICES;
       int tracks = _score->nstaves() * VOICES;
       if (_track < 0)
             _track = 0;
       else if (_track >= tracks)
             _track = tracks - 1;
-      _score->inputState().setTrack(_track);
+      inputState().setTrack(_track);
       }
 
 //---------------------------------------------------------
@@ -451,13 +628,31 @@ void Cursor::setStaffIdx(int v)
 
 void Cursor::setVoice(int v)
       {
-      _track = (_track / VOICES) * VOICES + v;
+      int _track = (track() / VOICES) * VOICES + v;
       int tracks = _score->nstaves() * VOICES;
       if (_track < 0)
             _track = 0;
       else if (_track >= tracks)
             _track = tracks - 1;
-      _score->inputState().setTrack(_track);
+      inputState().setTrack(_track);
+      }
+
+//---------------------------------------------------------
+//   segment
+//---------------------------------------------------------
+
+Ms::Segment* Cursor::segment() const
+      {
+      return inputState().segment();
+      }
+
+//---------------------------------------------------------
+//   setSegment
+//---------------------------------------------------------
+
+void Cursor::setSegment(Ms::Segment* seg)
+      {
+      inputState().setSegment(seg);
       }
 
 //---------------------------------------------------------
@@ -466,7 +661,7 @@ void Cursor::setVoice(int v)
 
 int Cursor::staffIdx() const
       {
-      return _track / VOICES;
+      return track() / VOICES;
       }
 
 //---------------------------------------------------------
@@ -475,7 +670,7 @@ int Cursor::staffIdx() const
 
 int Cursor::voice() const
       {
-      return _track % VOICES;
+      return track() % VOICES;
       }
 
 //---------------------------------------------------------
@@ -485,10 +680,13 @@ int Cursor::voice() const
 
 void Cursor::prevInTrack()
       {
-      if (_segment)
-            _segment = _segment->prev1(_filter);
-      while (_segment && !_segment->element(_track))
-            _segment = _segment->prev1(_filter);
+      const int t = track();
+      Ms::Segment* seg = segment();
+      if (seg)
+            seg = seg->prev1(_filter);
+      while (seg && !seg->element(t))
+            seg = seg->prev1(_filter);
+      setSegment(seg);
       }
 
 //---------------------------------------------------------
@@ -498,8 +696,11 @@ void Cursor::prevInTrack()
 
 void Cursor::nextInTrack()
       {
-      while (_segment && _segment->element(_track) == 0)
-            _segment = _segment->next1(_filter);
+      const int t = track();
+      Ms::Segment* seg = segment();
+      while (seg && seg->element(t) == 0)
+            seg = seg->next1(_filter);
+      setSegment(seg);
       }
 
 //---------------------------------------------------------
@@ -510,8 +711,25 @@ void Cursor::nextInTrack()
 
 int Cursor::qmlKeySignature()
       {
-      Staff* staff = _score->staves()[staffIdx()];
-      return (int) staff->key(Fraction::fromTicks(tick()));
+      Ms::Staff* staff = _score->staves()[staffIdx()];
+      return static_cast<int>(staff->key(Fraction::fromTicks(tick())));
+      }
+
+//---------------------------------------------------------
+//   inputStateString
+//---------------------------------------------------------
+
+int Cursor::inputStateString() const
+      {
+      const InputState& istate = inputState();
+      return _score->staff(staffIdx())->staffType(istate.tick())->visualStringToPhys(istate.string());
+      }
+
+void Cursor::setInputStateString(int string)
+      {
+      InputState& istate = inputState();
+      const int visString = _score->staff(staffIdx())->staffType(istate.tick())->visualStringToPhys(string);
+      istate.setString(visString);
       }
 }
 }

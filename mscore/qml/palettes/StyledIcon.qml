@@ -30,6 +30,7 @@ Item {
         fillMode: Image.PreserveAspectFit
         source: parent.source
     }
+
     ColorOverlay {
         anchors.fill: img
         source: img

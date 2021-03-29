@@ -69,8 +69,10 @@ class EditStaff : public QDialog, private Ui::EditStaffBase {
       void showClefChanged();
       void showTimeSigChanged();
       void showBarlinesChanged();
+      void invisibleChanged();
       void gotoNextStaff();
       void gotoPreviousStaff();
+      void transpositionChanged();
 
    signals:
       void instrumentChanged();

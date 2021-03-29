@@ -16,11 +16,17 @@
 #include "scoreelement.h"
 #include "libmscore/element.h"
 #include "libmscore/chord.h"
+#include "libmscore/hook.h"
 #include "libmscore/lyrics.h"
 #include "libmscore/measure.h"
 #include "libmscore/note.h"
 #include "libmscore/notedot.h"
+#include "libmscore/page.h"
 #include "libmscore/segment.h"
+#include "libmscore/staff.h"
+#include "libmscore/stem.h"
+#include "libmscore/stemslash.h"
+#include "libmscore/tuplet.h"
 #include "libmscore/accidental.h"
 #include "libmscore/musescoreCore.h"
 #include "libmscore/score.h"
@@ -31,7 +37,11 @@
 namespace Ms {
 namespace PluginAPI {
 
+class FractionWrapper;
 class Element;
+class Part;
+class Staff;
+class Tuplet;
 class Tie;
 extern Tie* tieWrap(Ms::Tie* tie);
 
@@ -81,6 +91,11 @@ class Element : public Ms::PluginAPI::ScoreElement {
        */
       Q_PROPERTY(Ms::PluginAPI::Element* parent READ parent)
       /**
+       * Staff which this element belongs to.
+       * \since MuseScore 3.5
+       */
+      Q_PROPERTY(Ms::PluginAPI::Staff* staff READ staff)
+      /**
        * X-axis offset from a reference position in spatium units.
        * \see Element::offset
        */
@@ -93,9 +108,9 @@ class Element : public Ms::PluginAPI::ScoreElement {
       /**
        * Reference position of this element relative to its parent element.
        *
-       * This is an offset from the parent object that is determined by the 
-       * autoplace feature. It includes any other offsets applied to the 
-       * element. You can use this value to accurately position other elements 
+       * This is an offset from the parent object that is determined by the
+       * autoplace feature. It includes any other offsets applied to the
+       * element. You can use this value to accurately position other elements
        * related to the same parent.
        *
        * This value is in spatium units for compatibility with Element.offsetX.
@@ -105,15 +120,20 @@ class Element : public Ms::PluginAPI::ScoreElement {
       /**
        * Reference position of this element relative to its parent element.
        *
-       * This is an offset from the parent object that is determined by the 
-       * autoplace feature. It includes any other offsets applied to the 
-       * element. You can use this value to accurately position other elements 
+       * This is an offset from the parent object that is determined by the
+       * autoplace feature. It includes any other offsets applied to the
+       * element. You can use this value to accurately position other elements
        * related to the same parent.
        *
        * This value is in spatium units for compatibility with Element.offsetY.
        * \since MuseScore 3.3
        */
       Q_PROPERTY(qreal posY READ posY)
+      /**
+       * Position of this element in page coordinates, in spatium units.
+       * \since MuseScore 3.5
+       */
+      Q_PROPERTY(QPointF pagePos READ pagePos)
 
       /**
        * Bounding box of this element.
@@ -142,6 +162,11 @@ class Element : public Ms::PluginAPI::ScoreElement {
       API_PROPERTY( fixedLine,               FIXED_LINE                )
       /** Notehead type, one of PluginAPI::PluginAPI::NoteHeadType values */
       API_PROPERTY( headType,                HEAD_TYPE                 )
+      /**
+       * Notehead scheme, one of PluginAPI::PluginAPI::NoteHeadScheme values.
+       * \since MuseScore 3.5
+       */
+      API_PROPERTY( headScheme,              HEAD_SCHEME               )
       /** Notehead group, one of PluginAPI::PluginAPI::NoteHeadGroup values */
       API_PROPERTY( headGroup,               HEAD_GROUP                )
       API_PROPERTY( articulationAnchor,      ARTICULATION_ANCHOR       )
@@ -173,12 +198,6 @@ class Element : public Ms::PluginAPI::ScoreElement {
       API_PROPERTY( play,                    PLAY                      )
       API_PROPERTY( timesigNominal,          TIMESIG_NOMINAL           )
       API_PROPERTY( timesigActual,           TIMESIG_ACTUAL            )
-      API_PROPERTY( numberType,              NUMBER_TYPE               )
-      API_PROPERTY( bracketType,             BRACKET_TYPE              )
-      API_PROPERTY( normalNotes,             NORMAL_NOTES              )
-      API_PROPERTY( actualNotes,             ACTUAL_NOTES              )
-      API_PROPERTY( p1,                      P1                        )
-      API_PROPERTY( p2,                      P2                        )
       API_PROPERTY( growLeft,                GROW_LEFT                 )
       API_PROPERTY( growRight,               GROW_RIGHT                )
       API_PROPERTY( boxHeight,               BOX_HEIGHT                )
@@ -200,6 +219,7 @@ class Element : public Ms::PluginAPI::ScoreElement {
       API_PROPERTY( beamMode,                BEAM_MODE                 )
       API_PROPERTY( beamNoSlope,             BEAM_NO_SLOPE             )
       API_PROPERTY( userLen,                 USER_LEN                  )
+      /** For spacers: amount of space between staves. */
       API_PROPERTY( space,                   SPACE                     )
       API_PROPERTY( tempo,                   TEMPO                     )
       API_PROPERTY( tempoFollowText,         TEMPO_FOLLOW_TEXT         )
@@ -223,6 +243,11 @@ class Element : public Ms::PluginAPI::ScoreElement {
       API_PROPERTY( veloChangeMethod,        VELO_CHANGE_METHOD        )
       API_PROPERTY( veloChangeSpeed,         VELO_CHANGE_SPEED         )
       API_PROPERTY( dynamicRange,            DYNAMIC_RANGE             )
+      /**
+       *    The way a ramp interpolates between values.
+       *    \since MuseScore 3.5
+       */
+      API_PROPERTY( changeMethod,            CHANGE_METHOD             )
       API_PROPERTY( placement,               PLACEMENT                 )
       API_PROPERTY( velocity,                VELOCITY                  )
       API_PROPERTY( jumpTo,                  JUMP_TO                   )
@@ -233,9 +258,16 @@ class Element : public Ms::PluginAPI::ScoreElement {
       API_PROPERTY( arpUserLen1,             ARP_USER_LEN1             )
       API_PROPERTY( arpUserLen2,             ARP_USER_LEN2             )
       API_PROPERTY( measureNumberMode,       MEASURE_NUMBER_MODE       )
+      /** \since MuseScore 3.6 */
+      API_PROPERTY( mmRestRangeBracketType,  MMREST_RANGE_BRACKET_TYPE )
       API_PROPERTY( glissType,               GLISS_TYPE                )
       API_PROPERTY( glissText,               GLISS_TEXT                )
       API_PROPERTY( glissShowText,           GLISS_SHOW_TEXT           )
+      API_PROPERTY( glissandoStyle,          GLISS_STYLE               )
+      /** \since MuseScore 3.6 */
+      API_PROPERTY( glissEaseIn,             GLISS_EASEIN              )
+      /** \since MuseScore 3.6 */
+      API_PROPERTY( glissEaseOut,            GLISS_EASEOUT             )
       API_PROPERTY( diagonal,                DIAGONAL                  )
       API_PROPERTY( groups,                  GROUPS                    )
       API_PROPERTY( lineStyle,               LINE_STYLE                )
@@ -271,11 +303,9 @@ class Element : public Ms::PluginAPI::ScoreElement {
       API_PROPERTY( lineVisible,             LINE_VISIBLE              )
       API_PROPERTY( mag,                     MAG                       )
       API_PROPERTY( useDrumset,              USE_DRUMSET               )
-      API_PROPERTY( duration,                DURATION                  )
       API_PROPERTY( durationType,            DURATION_TYPE             )
       API_PROPERTY( role,                    ROLE                      )
       API_PROPERTY_T( int, track,            TRACK                     )
-      API_PROPERTY( glissandoStyle,          GLISSANDO_STYLE           )
       API_PROPERTY( fretStrings,             FRET_STRINGS              )
       API_PROPERTY( fretFrets,               FRET_FRETS                )
       /*API_PROPERTY( fretBarre,               FRET_BARRE                )*/
@@ -288,10 +318,10 @@ class Element : public Ms::PluginAPI::ScoreElement {
       API_PROPERTY( dashLineLen,             DASH_LINE_LEN             )
       API_PROPERTY( dashGapLen,              DASH_GAP_LEN              )
 //       API_PROPERTY_READ_ONLY( tick,          TICK                      ) // wasn't available in 2.X, disabled due to fractions transition
-      API_PROPERTY( playbackVoice1,          PLAYBACK_VOICE1           )
-      API_PROPERTY( playbackVoice2,          PLAYBACK_VOICE2           )
-      API_PROPERTY( playbackVoice3,          PLAYBACK_VOICE3           )
-      API_PROPERTY( playbackVoice4,          PLAYBACK_VOICE4           )
+      /**
+       * Symbol ID of this element (if approproate),
+       * one of PluginAPI::PluginAPI::SymId values.
+       */
       API_PROPERTY( symbol,                  SYMBOL                    )
       API_PROPERTY( playRepeats,             PLAY_REPEATS              )
       API_PROPERTY( createSystemHeader,      CREATE_SYSTEM_HEADER      )
@@ -301,15 +331,10 @@ class Element : public Ms::PluginAPI::ScoreElement {
       API_PROPERTY( staffShowBarlines,       STAFF_SHOW_BARLINES       )
       API_PROPERTY( staffShowLedgerlines,    STAFF_SHOW_LEDGERLINES    )
       API_PROPERTY( staffStemless,           STAFF_STEMLESS            )
-      API_PROPERTY( staffNoteheadScheme,     STAFF_NOTEHEAD_SCHEME     )
       API_PROPERTY( staffGenClef,            STAFF_GEN_CLEF            )
       API_PROPERTY( staffGenTimesig,         STAFF_GEN_TIMESIG         )
       API_PROPERTY( staffGenKeysig,          STAFF_GEN_KEYSIG          )
       API_PROPERTY( staffYoffset,            STAFF_YOFFSET             )
-      API_PROPERTY( staffUserdist,           STAFF_USERDIST            )
-      API_PROPERTY( staffBarlineSpan,        STAFF_BARLINE_SPAN        )
-      API_PROPERTY( staffBarlineSpanFrom,    STAFF_BARLINE_SPAN_FROM   )
-      API_PROPERTY( staffBarlineSpanTo,      STAFF_BARLINE_SPAN_TO     )
       API_PROPERTY( bracketSpan,             BRACKET_SPAN              )
       API_PROPERTY( bracketColumn,           BRACKET_COLUMN            )
       API_PROPERTY( inameLayoutPosition,     INAME_LAYOUT_POSITION     )
@@ -354,6 +379,12 @@ class Element : public Ms::PluginAPI::ScoreElement {
       API_PROPERTY( posAbove,                POS_ABOVE                 )
       API_PROPERTY_T( int, voice,            VOICE                     )
       API_PROPERTY_READ_ONLY( position,      POSITION                  ) // TODO: needed?
+      /**
+       * For chord symbols, chord symbol type, one of
+       * PluginAPI::PluginAPI::HarmonyType values.
+       * \since MuseScore 3.6
+       */
+      API_PROPERTY( harmonyType,             HARMONY_TYPE              )
 
       qreal offsetX() const { return element()->offset().x() / element()->spatium(); }
       qreal offsetY() const { return element()->offset().y() / element()->spatium(); }
@@ -363,7 +394,10 @@ class Element : public Ms::PluginAPI::ScoreElement {
       qreal posX() const { return element()->pos().x() / element()->spatium(); }
       qreal posY() const { return element()->pos().y() / element()->spatium(); }
 
+      QPointF pagePos() const { return element()->pagePos() / element()->spatium(); }
+
       Ms::PluginAPI::Element* parent() const { return wrap(element()->parent()); }
+      Staff* staff() { return wrap<Staff>(element()->staff()); }
 
       QRectF bbox() const;
 
@@ -396,8 +430,10 @@ class Note : public Element {
       Q_OBJECT
       Q_PROPERTY(Ms::PluginAPI::Element*          accidental        READ accidental)
       Q_PROPERTY(Ms::AccidentalType               accidentalType    READ accidentalType  WRITE setAccidentalType)
+      /** List of dots attached to this note */
       Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Element>  dots              READ dots)
 //       Q_PROPERTY(int                            dotsCount         READ qmlDotsCount)
+      /** List of other elements attached to this note: fingerings, symbols, bends etc. */
       Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Element>  elements          READ elements)
       /// List of PlayEvents associated with this note.
       /// Important: You must call Score.createPlayEvents()
@@ -507,19 +543,135 @@ class Note : public Element {
       };
 
 //---------------------------------------------------------
+//   DurationElement
+//---------------------------------------------------------
+
+class DurationElement : public Element {
+      Q_OBJECT
+
+      /**
+       * Nominal duration of this element.
+       * The duration is represented as a fraction of whole note length.
+       */
+      API_PROPERTY_READ_ONLY( duration,                DURATION                  )
+      /**
+       * Global duration of this element, taking into account ratio of
+       * parent tuplets if there are any.
+       * \since MuseScore 3.5
+       */
+      Q_PROPERTY(Ms::PluginAPI::FractionWrapper* globalDuration READ globalDuration)
+      /**
+       * Actual duration of this element, taking into account ratio of
+       * parent tuplets and local time signatures if there are any.
+       * \since MuseScore 3.5
+       */
+      Q_PROPERTY(Ms::PluginAPI::FractionWrapper* actualDuration READ actualDuration)
+      /**
+       * Tuplet which this element belongs to. If there is no parent tuplet, returns null.
+       * \since MuseScore 3.5
+       */
+      Q_PROPERTY(Ms::PluginAPI::Tuplet* tuplet READ parentTuplet)
+
+   public:
+      /// \cond MS_INTERNAL
+      DurationElement(Ms::DurationElement* de = nullptr, Ownership own = Ownership::PLUGIN)
+         : Element(de, own) {}
+
+      Ms::DurationElement* durationElement() { return toDurationElement(e); }
+      const Ms::DurationElement* durationElement() const { return toDurationElement(e); }
+
+      FractionWrapper* globalDuration() const;
+      FractionWrapper* actualDuration() const;
+
+      Tuplet* parentTuplet();
+      /// \endcond
+      };
+
+//---------------------------------------------------------
+//   Tuplet
+//---------------------------------------------------------
+
+class Tuplet : public DurationElement {
+      Q_OBJECT
+
+      API_PROPERTY( numberType,              NUMBER_TYPE               )
+      API_PROPERTY( bracketType,             BRACKET_TYPE              )
+      /** Actual number of notes of base nominal length in this tuplet. */
+      API_PROPERTY_READ_ONLY_T( int, actualNotes, ACTUAL_NOTES         )
+      /**
+       * Number of "normal" notes of base nominal length which correspond
+       * to this tuplet's duration.
+       */
+      API_PROPERTY_READ_ONLY_T( int, normalNotes, NORMAL_NOTES         )
+      API_PROPERTY( p1,                      P1                        )
+      API_PROPERTY( p2,                      P2                        )
+
+      /**
+       * List of elements which belong to this tuplet.
+       * \since MuseScore 3.5
+       */
+      Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Element> elements READ elements)
+
+   public:
+      /// \cond MS_INTERNAL
+      Tuplet(Ms::Tuplet* t = nullptr, Ownership own = Ownership::PLUGIN)
+         : DurationElement(t, own) {}
+
+      Ms::Tuplet* tuplet() { return toTuplet(e); }
+      const Ms::Tuplet* tuplet() const { return toTuplet(e); }
+
+      QQmlListProperty<Element> elements() { return wrapContainerProperty<Element>(this, tuplet()->elements()); }
+      /// \endcond
+      };
+
+//---------------------------------------------------------
+//   ChordRest
+//    ChordRest wrapper
+//---------------------------------------------------------
+
+class ChordRest : public DurationElement {
+      Q_OBJECT
+      /**
+       * Lyrics corresponding to this chord or rest, if any.
+       * Before 3.6 version this property was only available for \ref Chord objects.
+       */
+      Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Element>  lyrics     READ lyrics  )
+      /**
+       * Beam which covers this chord/rest, if such exists.
+       * \since MuseScore 3.6
+       */
+      Q_PROPERTY(Ms::PluginAPI::Element*                   beam       READ beam    )
+
+   public:
+      /// \cond MS_INTERNAL
+      ChordRest(Ms::ChordRest* c = nullptr, Ownership own = Ownership::PLUGIN)
+         : DurationElement(c, own) {}
+
+      Ms::ChordRest* chordRest() { return toChordRest(e); }
+
+      QQmlListProperty<Element> lyrics() { return wrapContainerProperty<Element>(this, chordRest()->lyrics()); } // TODO: special type for Lyrics?
+      Element* beam() { return wrap(chordRest()->beam()); }
+      /// \endcond
+      };
+
+//---------------------------------------------------------
 //   Chord
 //    Chord wrapper
 //---------------------------------------------------------
 
-class Chord : public Element {
+class Chord : public ChordRest {
       Q_OBJECT
+      /// List of grace notes (grace chords) belonging to this chord.
       Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Chord>    graceNotes READ graceNotes)
+      /// List of notes belonging to this chord.
       Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Note>     notes      READ notes     )
-      Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Element>  lyrics     READ lyrics    ) // TODO: move to ChordRest
-      //Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Element>  stem       READ stem      )
-      //Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Element>  stemSlash  READ stemSlash )
-      //Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Element>  beam       READ beam      )
-      //Q_PROPERTY(QQmlListProperty<Ms::PluginAPI::Element>  hook       READ hook      )
+      /// Stem of this chord, if exists. \since MuseScore 3.6
+      Q_PROPERTY(Ms::PluginAPI::Element*                   stem       READ stem      )
+      /// Stem slash of this chord, if exists. Stem slashes are present in grace notes of type acciaccatura.
+      /// \since MuseScore 3.6
+      Q_PROPERTY(Ms::PluginAPI::Element*                   stemSlash  READ stemSlash )
+      /// Hook on a stem of this chord, if exists. \since MuseScore 3.6
+      Q_PROPERTY(Ms::PluginAPI::Element*                   hook       READ hook      )
       /// The NoteType of the chord.
       /// \since MuseScore 3.2.1
       Q_PROPERTY(Ms::NoteType                              noteType   READ noteType)
@@ -530,18 +682,16 @@ class Chord : public Element {
    public:
       /// \cond MS_INTERNAL
       Chord(Ms::Chord* c = nullptr, Ownership own = Ownership::PLUGIN)
-         : Element(c, own) {}
+         : ChordRest(c, own) {}
 
       Ms::Chord* chord() { return toChord(e); }
       const Ms::Chord* chord() const { return toChord(e); }
 
       QQmlListProperty<Chord> graceNotes()     { return wrapContainerProperty<Chord>(this, chord()->graceNotes()); }
       QQmlListProperty<Note> notes()           { return wrapContainerProperty<Note>(this, chord()->notes());       }
-      QQmlListProperty<Element> lyrics()       { return wrapContainerProperty<Element>(this, chord()->lyrics());   } // TODO: move to ChordRest // TODO: special type for Lyrics?
-      //QQmlListProperty<Element> stem()         { return wrapContainerProperty<Element>(this, chord()->stem());      }
-      //QQmlListProperty<Element> stemSlash()    { return wrapContainerProperty<Element>(this, chord()->stemSlash()); }
-      //QQmlListProperty<Element> beam()         { return wrapContainerProperty<Element>(this, chord()->beam());      }
-      //QQmlListProperty<Element> hook()         { return wrapContainerProperty<Element>(this, chord()->hook());      }
+      Element* stem()                          { return wrap(chord()->stem());      }
+      Element* stemSlash()                     { return wrap(chord()->stemSlash()); }
+      Element* hook()                          { return wrap(chord()->hook());      }
       Ms::NoteType noteType()                  { return chord()->noteType(); }
       Ms::PlayEventType playEventType()        { return chord()->playEventType(); }
       void setPlayEventType(Ms::PlayEventType v);
@@ -637,11 +787,26 @@ class Measure : public Element {
 
       // TODO: to MeasureBase?
 //       Q_PROPERTY(bool         lineBreak         READ lineBreak   WRITE undoSetLineBreak)
+      /// Next measure.
       Q_PROPERTY(Ms::PluginAPI::Measure* nextMeasure       READ nextMeasure)
-//       Q_PROPERTY(Ms::Measure* nextMeasureMM     READ nextMeasureMM)
+      /// Next measure, accounting for multimeasure rests.
+      /// This property may differ from \ref nextMeasure if multimeasure rests
+      /// are enabled. If next measure is a multimeasure rest, this property
+      /// points to the multimeasure rest measure while \ref nextMeasure in the
+      /// same case will point to the first underlying empty measure. Therefore
+      /// if visual properties of a measure are needed (as opposed to logical
+      /// score structure) this property should be preferred.
+      /// \see \ref Score.firstMeasureMM
+      /// \since MuseScore 3.6
+      Q_PROPERTY(Ms::PluginAPI::Measure* nextMeasureMM     READ nextMeasureMM)
 //       Q_PROPERTY(bool         pageBreak         READ pageBreak   WRITE undoSetPageBreak)
+      /// Previous measure.
       Q_PROPERTY(Ms::PluginAPI::Measure* prevMeasure       READ prevMeasure)
-//       Q_PROPERTY(Ms::Measure* prevMeasureMM     READ prevMeasureMM)
+      /// Previous measure, accounting for multimeasure rests.
+      /// See \ref nextMeasureMM for a reference on multimeasure rests.
+      /// \see \ref Score.lastMeasureMM
+      /// \since MuseScore 3.6
+      Q_PROPERTY(Ms::PluginAPI::Measure* prevMeasureMM     READ prevMeasureMM)
 
       /// List of measure-related elements: layout breaks, jump/repeat markings etc.
       /// \since MuseScore 3.3
@@ -661,7 +826,95 @@ class Measure : public Element {
       Measure* prevMeasure() { return wrap<Measure>(measure()->prevMeasure(), Ownership::SCORE); }
       Measure* nextMeasure() { return wrap<Measure>(measure()->nextMeasure(), Ownership::SCORE); }
 
+      Measure* prevMeasureMM() { return wrap<Measure>(measure()->prevMeasureMM(), Ownership::SCORE); }
+      Measure* nextMeasureMM() { return wrap<Measure>(measure()->nextMeasureMM(), Ownership::SCORE); }
+
       QQmlListProperty<Element> elements() { return wrapContainerProperty<Element>(this, measure()->el()); }
+      /// \endcond
+      };
+
+//---------------------------------------------------------
+//   Page
+//---------------------------------------------------------
+
+class Page : public Element {
+      Q_OBJECT
+      /**
+       * \brief Page number, counting from 0.
+       * Number of this page in the score counting from 0, i.e.
+       * for the first page its \p pagenumber value will be equal to 0.
+       * User-visible page number can be calculated as
+       * \code
+       * page.pagenumber + 1 + score.pageNumberOffset
+       * \endcode
+       * where \p score is the relevant \ref Score object.
+       * \since MuseScore 3.5
+       * \see Score::pageNumberOffset
+       */
+      Q_PROPERTY(int pagenumber READ pagenumber)
+
+   public:
+      /// \cond MS_INTERNAL
+      Page(Ms::Page* p = nullptr, Ownership own = Ownership::SCORE)
+         : Element(p, own) {}
+
+      Ms::Page* page() { return toPage(e); }
+      const Ms::Page* page() const { return toPage(e); }
+
+      int pagenumber() const;
+      /// \endcond
+      };
+
+//---------------------------------------------------------
+//   Staff
+///   \since MuseScore 3.5
+//---------------------------------------------------------
+
+class Staff : public ScoreElement {
+      Q_OBJECT
+
+      API_PROPERTY_T( bool, small,           SMALL                     )
+      API_PROPERTY_T( qreal, mag,            MAG                       )
+      /**
+       * Staff color. See https://doc.qt.io/qt-5/qml-color.html
+       * for the reference on color type in QML.
+       */
+      API_PROPERTY_T( QColor, color,         COLOR                     )
+
+      /** Whether voice 1 participates in playback. */
+      API_PROPERTY_T( bool, playbackVoice1,  PLAYBACK_VOICE1           )
+      /** Whether voice 2 participates in playback. */
+      API_PROPERTY_T( bool, playbackVoice2,  PLAYBACK_VOICE2           )
+      /** Whether voice 3 participates in playback. */
+      API_PROPERTY_T( bool, playbackVoice3,  PLAYBACK_VOICE3           )
+      /** Whether voice 4 participates in playback. */
+      API_PROPERTY_T( bool, playbackVoice4,  PLAYBACK_VOICE4           )
+
+      API_PROPERTY_T( int, staffBarlineSpan,     STAFF_BARLINE_SPAN      )
+      API_PROPERTY_T( int, staffBarlineSpanFrom, STAFF_BARLINE_SPAN_FROM )
+      API_PROPERTY_T( int, staffBarlineSpanTo,   STAFF_BARLINE_SPAN_TO   )
+
+      /**
+       * User-defined amount of additional space before this staff.
+       * It is recommended to consider adding a spacer instead as it
+       * allows adjusting staff spacing locally as opposed to this
+       * property.
+       * \see \ref Element.space
+       */
+      API_PROPERTY_T( qreal, staffUserdist,  STAFF_USERDIST            )
+
+      /** Part which this staff belongs to. */
+      Q_PROPERTY(Ms::PluginAPI::Part* part READ part)
+
+   public:
+      /// \cond MS_INTERNAL
+      Staff(Ms::Staff* staff, Ownership own = Ownership::PLUGIN)
+         : Ms::PluginAPI::ScoreElement(staff, own) {}
+
+      Ms::Staff* staff() { return toStaff(e); }
+      const Ms::Staff* staff() const { return toStaff(e); }
+
+      Part* part();
       /// \endcond
       };
 

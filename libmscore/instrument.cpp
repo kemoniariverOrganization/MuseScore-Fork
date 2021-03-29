@@ -20,10 +20,16 @@
 #include "mscore.h"
 #include "part.h"
 #include "score.h"
-#include "synthesizer/synthesizer.h"
-#include "synthesizer/midipatch.h"
+
+#include "audio/midi/synthesizer.h"
+#include "audio/midi/midipatch.h"
 
 namespace Ms {
+
+//: Channel name for otherwise unamed channels
+const char* Channel::DEFAULT_NAME = QT_TRANSLATE_NOOP("InstrumentsXML", "normal");
+//: Channel name for the chord symbols playback channel, best keep translation shorter than 11 letters
+const char* Channel::HARMONY_NAME = QT_TRANSLATE_NOOP("InstrumentsXML", "harmony");
 
 Instrument InstrumentList::defaultInstrument;
 const std::initializer_list<Channel::Prop> PartChannelSettingsLink::excerptProperties {
@@ -38,7 +44,7 @@ const std::initializer_list<Channel::Prop> PartChannelSettingsLink::excerptPrope
 
 void NamedEventList::write(XmlWriter& xml, const QString& n) const
       {
-      xml.stag(QString("%1 name=\"%2\"").arg(n).arg(name));
+      xml.stag(QString("%1 name=\"%2\"").arg(n, name));
       if (!descr.isEmpty())
             xml.tag("descr", descr);
       for (const MidiCoreEvent& e : events)
@@ -88,8 +94,9 @@ bool MidiArticulation::operator==(const MidiArticulation& i) const
 //   Instrument
 //---------------------------------------------------------
 
-Instrument::Instrument()
+Instrument::Instrument(QString id)
       {
+      _id = id;
       Channel* a = new Channel;
       a->setName(Channel::DEFAULT_NAME);
       _channel.append(a);
@@ -105,6 +112,7 @@ Instrument::Instrument()
 
 Instrument::Instrument(const Instrument& i)
       {
+      _id           = i._id;
       _longNames    = i._longNames;
       _shortNames   = i._shortNames;
       _trackName    = i._trackName;
@@ -133,6 +141,7 @@ void Instrument::operator=(const Instrument& i)
       _channel.clear();
       delete _drumset;
 
+      _id           = i._id;
       _longNames    = i._longNames;
       _shortNames   = i._shortNames;
       _trackName    = i._trackName;
@@ -208,7 +217,10 @@ void StaffName::read(XmlReader& e)
 
 void Instrument::write(XmlWriter& xml, const Part* part) const
       {
-      xml.stag("Instrument");
+      if (_id.isEmpty())
+            xml.stag("Instrument");
+      else
+            xml.stag(QString("Instrument id=\"%1\"").arg(_id));
       _longNames.write(xml, "longName");
       _shortNames.write(xml, "shortName");
 //      if (!_trackName.empty())
@@ -270,6 +282,63 @@ void Instrument::write(XmlWriter& xml, const Part* part) const
       xml.etag();
       }
 
+QString Instrument::recognizeInstrumentId() const
+      {
+      static QString defaultInstrumentId("keyboard.piano");
+
+      QList<QString> nameList;
+
+      nameList << _trackName;
+      nameList << _longNames.toStringList();
+      nameList << _shortNames.toStringList();
+
+      InstrumentTemplate* tmplByName = Ms::searchTemplateForInstrNameList(nameList);
+
+      if (tmplByName && !tmplByName->musicXMLid.isEmpty())
+            return tmplByName->musicXMLid;
+
+      if (!channel(0))
+            return defaultInstrumentId;
+
+      InstrumentTemplate* tmplMidiProgram = Ms::searchTemplateForMidiProgram(channel(0)->program(), useDrumset());
+
+      if (tmplMidiProgram && !tmplMidiProgram->musicXMLid.isEmpty())
+            return tmplMidiProgram->musicXMLid;
+
+      InstrumentTemplate* guessedTmpl = Ms::guessTemplateByNameData(nameList);
+
+      if (guessedTmpl && !guessedTmpl->musicXMLid.isEmpty())
+            return guessedTmpl->musicXMLid;
+
+      return defaultInstrumentId;
+      }
+
+int Instrument::recognizeMidiProgram() const
+      {
+      InstrumentTemplate* tmplInstrumentId = Ms::searchTemplateForMusicXmlId(_instrumentId);
+
+      if (tmplInstrumentId && !tmplInstrumentId->channel.isEmpty() && tmplInstrumentId->channel[0].program() >= 0)
+            return tmplInstrumentId->channel[0].program();
+
+      QList<QString> nameList;
+
+      nameList << _trackName;
+      nameList << _longNames.toStringList();
+      nameList << _shortNames.toStringList();
+
+      InstrumentTemplate* tmplByName = Ms::searchTemplateForInstrNameList(nameList);
+
+      if (tmplByName && !tmplByName->channel.isEmpty() && tmplByName->channel[0].program() >= 0)
+            return tmplByName->channel[0].program();
+
+      InstrumentTemplate* guessedTmpl = Ms::guessTemplateByNameData(nameList);
+
+      if (guessedTmpl && !guessedTmpl->channel.isEmpty() && guessedTmpl->channel[0].program() >= 0)
+            return guessedTmpl->channel[0].program();
+
+      return 0;
+      }
+
 //---------------------------------------------------------
 //   Instrument::read
 //---------------------------------------------------------
@@ -280,6 +349,7 @@ void Instrument::read(XmlReader& e, Part* part)
       bool readSingleNoteDynamics = false;
 
       _channel.clear();       // remove default channel
+      _id = e.attribute("id");
       while (e.readNextStartElement()) {
             const QStringRef& tag(e.name());
             if (tag == "singleNoteDynamics") {
@@ -289,6 +359,13 @@ void Instrument::read(XmlReader& e, Part* part)
             else if (!readProperties(e, part, &customDrumset))
                   e.unknown();
             }
+
+      if (_instrumentId.isEmpty())
+            _instrumentId = recognizeInstrumentId();
+
+      if (channel(0) && channel(0)->program() == -1) {
+          channel(0)->setProgram(recognizeMidiProgram());
+      }
 
       if (!readSingleNoteDynamics)
             setSingleNoteDynamicsFromTemplate();
@@ -419,10 +496,6 @@ NamedEventList* Instrument::midiAction(const QString& s, int channelIdx) const
             }
       return 0;
       }
-
-
-const char *Channel::DEFAULT_NAME = "normal";
-
 
 //---------------------------------------------------------
 //   Channel
@@ -821,7 +894,7 @@ void Channel::switchExpressive(Synthesizer* synth, bool expressive, bool force /
       if (fontsInfo.empty())
             return;
       const auto& info = fontsInfo.front();
-      if (!info.fontName.contains("MuseScore_General")) {
+      if (!info.fontName.contains("MuseScore_General", Qt::CaseInsensitive)) {
             qDebug().nospace() << "Soundfont '" << info.fontName << "' is not MuseScore General, cannot update expressive";
             return;
             }
@@ -1105,12 +1178,21 @@ void MidiArticulation::read(XmlReader& e)
 
 void Instrument::updateVelocity(int* velocity, int /*channelIdx*/, const QString& name)
       {
-      for (const MidiArticulation& a : _articulation) {
+      *velocity *= getVelocityMultiplier(name);
+      }
+
+//---------------------------------------------------------
+//   updateVelocity
+//---------------------------------------------------------
+
+qreal Instrument::getVelocityMultiplier(const QString& name)
+      {
+      for (const MidiArticulation& a : qAsConst(_articulation)) {
             if (a.name == name) {
-                  *velocity = *velocity * a.velocity / 100;
-                  break;
+                  return qreal(a.velocity) / 100;
                   }
             }
+      return 1;
       }
 
 //---------------------------------------------------------
@@ -1119,7 +1201,7 @@ void Instrument::updateVelocity(int* velocity, int /*channelIdx*/, const QString
 
 void Instrument::updateGateTime(int* gateTime, int /*channelIdx*/, const QString& name)
       {
-      for (const MidiArticulation& a : _articulation) {
+      for (const MidiArticulation& a : qAsConst(_articulation)) {
             if (a.name == name) {
                   *gateTime = a.gateTime;
                   break;
@@ -1188,12 +1270,54 @@ bool Instrument::operator==(const Instrument& i) const
       }
 
 //---------------------------------------------------------
+//   isDifferentInstrument
+///   Checks if the passed instrument is a different instrument.
+///   Does not compare channels.
+//---------------------------------------------------------
+
+bool Instrument::isDifferentInstrument(const Instrument& i) const
+      {
+      int n = _longNames.size();
+      if (i._longNames.size() != n)
+            return true;
+      for (int k = 0; k < n; ++k) {
+            if (!(i._longNames[k] == _longNames[k]))
+                  return true;
+            }
+      n = _shortNames.size();
+      if (i._shortNames.size() != n)
+            return true;
+      for (int k = 0; k < n; ++k) {
+            if (!(i._shortNames[k] == _shortNames[k].name()))
+                  return true;
+            }
+
+      return i._minPitchA != _minPitchA
+            || i._maxPitchA != _maxPitchA
+            || i._minPitchP != _minPitchP
+            || i._maxPitchP != _maxPitchP
+            || i._useDrumset != _useDrumset
+            || i._midiActions != _midiActions
+            || i._articulation != _articulation
+            || i._transpose.diatonic != _transpose.diatonic
+            || i._transpose.chromatic != _transpose.chromatic
+            || i._trackName != _trackName
+            || !(*i.stringData() == *stringData())
+            || i._singleNoteDynamics != _singleNoteDynamics;
+      }
+
+//---------------------------------------------------------
 //   operator==
 //---------------------------------------------------------
 
 bool StaffName::operator==(const StaffName& i) const
       {
       return (i._pos == _pos) && (i._name == _name);
+      }
+
+QString StaffName::toString() const
+      {
+      return _name;
       }
 
 //---------------------------------------------------------
@@ -1432,12 +1556,12 @@ void Instrument::setTrackName(const QString& s)
 
 Instrument Instrument::fromTemplate(const InstrumentTemplate* t)
       {
-      Instrument instr;
+      Instrument instr(t->id);
       instr.setAmateurPitchRange(t->minPitchA, t->maxPitchA);
       instr.setProfessionalPitchRange(t->minPitchP, t->maxPitchP);
-      for (StaffName sn : t->longNames)
+      for (const StaffName &sn : t->longNames)
             instr.addLongName(StaffName(sn.name(), sn.pos()));
-      for (StaffName sn : t->shortNames)
+      for (const StaffName &sn : t->shortNames)
             instr.addShortName(StaffName(sn.name(), sn.pos()));
       instr.setTrackName(t->trackName);
       instr.setTranspose(t->transpose);
@@ -1454,6 +1578,55 @@ Instrument Instrument::fromTemplate(const InstrumentTemplate* t)
       instr.setStringData(t->stringData);
       instr.setSingleNoteDynamics(t->singleNoteDynamics);
       return instr;
+      }
+
+//---------------------------------------------------------
+//  updateInstrumentId
+//---------------------------------------------------------
+
+void Instrument::updateInstrumentId()
+      {
+      if (!_id.isEmpty() || _instrumentId.isEmpty())
+            return;
+
+      // When reading a score create with pre-3.6, instruments doesn't
+      // have an id define in the instrument. So try to find the instrumentId
+      // based on MusicXMLid.
+      // This requires a hack for instruments using MusicXMLid "strings.group"
+      // because there are multiple instrument using this same id.
+      // For these instruments, use the value of controller 32 of the "arco"
+      // channel to find the correct instrument.
+      const QString arco = QString("arco");
+      const bool groupHack = instrumentId() == QString("strings.group");
+      const int idxref = channelIdx(arco);
+      const int val32ref = (idxref < 0) ? -1 : channel(idxref)->bank();
+      QString fallback;
+
+      for (InstrumentGroup* g : instrumentGroups) {
+            for (InstrumentTemplate* it : g->instrumentTemplates) {
+                  if (it->musicXMLid == instrumentId()) {
+                        if (groupHack) {
+                              if (fallback.isEmpty())
+                                    // Instrument "Strings" doesn't have bank defined so
+                                    // if no "strings.group" instrument with requested bank
+                                    // is found, assume "Strings".
+                                    fallback = it->id;
+                              for (const Channel& chan : it->channel) {
+                                    if ((chan.name() == arco) && (chan.bank() == val32ref)) {
+                                          _id = it->id;
+                                          return;
+                                          }
+                                    }
+                              }
+                        else {
+                              _id = it->id;
+                              return;
+                              }
+                        }
+                  }
+            }
+
+      _id = fallback.isEmpty() ? QString("piano") : fallback;
       }
 
 //---------------------------------------------------------
@@ -1505,6 +1678,16 @@ void StaffNameList::write(XmlWriter& xml, const char* name) const
       {
       for (const StaffName& sn : *this)
             sn.write(xml, name);
+      }
+
+QStringList StaffNameList::toStringList() const
+      {
+      QStringList result;
+
+      for (const StaffName& name : *this)
+            result << name.toString();
+
+      return result;
       }
 }
 

@@ -127,7 +127,7 @@ void TimeDialog::save()
 
 void TimeDialog::zChanged(int val)
       {
-      zText->setText(QString("%1").arg(val));
+      Q_UNUSED(val);
       Fraction sig(zNominal->value(), denominator());
       groups->setSig(sig, Groups::endings(sig), zText->text(), nText->text());
       }
@@ -136,9 +136,9 @@ void TimeDialog::zChanged(int val)
 //   nChanged
 //---------------------------------------------------------
 
-void TimeDialog::nChanged(int /*val*/)
+void TimeDialog::nChanged(int val)
       {
-      nText->setText(QString("%1").arg(denominator()));
+      Q_UNUSED(val);
       Fraction sig(zNominal->value(), denominator());
       groups->setSig(sig, Groups::endings(sig), zText->text(), nText->text());
       }

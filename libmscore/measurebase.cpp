@@ -259,6 +259,22 @@ Measure* MeasureBase::prevMeasureMM() const
       }
 
 //---------------------------------------------------------
+//   findPotentialSectionBreak
+//---------------------------------------------------------
+
+const MeasureBase *MeasureBase::findPotentialSectionBreak() const
+      {
+      // we're trying to find the MeasureBase that determines
+      // if the next one after this starts a new section
+      // if this is a measure, it's the one that determines this
+      // but if it is a frame, we may need to look backwards
+      const MeasureBase* mb = this;
+      while (mb && !mb->isMeasure() && !mb->sectionBreak())
+            mb = mb->prev();
+      return mb;
+      }
+
+//---------------------------------------------------------
 //   pause
 //---------------------------------------------------------
 
@@ -302,13 +318,42 @@ void MeasureBase::layout()
       }
 
 //---------------------------------------------------------
+//   top
+//---------------------------------------------------------
+
+MeasureBase* MeasureBase::top() const
+      {
+      const MeasureBase* mb = this;
+      while (mb->parent()) {
+            if (mb->parent()->isMeasureBase())
+                  mb = toMeasureBase(mb->parent());
+            else
+                  break;
+            }
+      return const_cast<MeasureBase*>(mb);
+      }
+
+//---------------------------------------------------------
+//   tick
+//---------------------------------------------------------
+
+Fraction MeasureBase::tick() const
+      {
+      const MeasureBase* mb = top();
+      return mb ? mb->_tick : Fraction(-1, 1);
+      }
+
+//---------------------------------------------------------
 //   triggerLayout
 //---------------------------------------------------------
 
 void MeasureBase::triggerLayout() const
       {
-      if (prev() || next()) // avoid triggering layout before getting added to a score
-            score()->setLayout(tick(), -1, this);
+      // for measurebases within other measurebases (e.g., hbox within vbox), use top level
+      const MeasureBase* mb = top();
+      // avoid triggering layout before getting added to a score
+      if (mb->prev() || mb->next())
+            score()->setLayout(mb->tick(), -1, mb);
       }
 
 //---------------------------------------------------------
@@ -503,6 +548,20 @@ MeasureBase* MeasureBase::nextMM() const
       }
 
 //---------------------------------------------------------
+//   prevMM
+//---------------------------------------------------------
+
+MeasureBase* MeasureBase::prevMM() const
+      {
+      if (_prev
+         && _prev->isMeasure()
+         && score()->styleB(Sid::createMultiMeasureRests)) {
+            return const_cast<Measure*>(toMeasure(_prev)->mmRest1());
+            }
+      return _prev;
+      }
+
+//---------------------------------------------------------
 //   writeProperties
 //---------------------------------------------------------
 
@@ -589,7 +648,7 @@ int MeasureBase::index() const
 int MeasureBase::measureIndex() const
       {
       int idx = 0;
-      MeasureBase* m = score()->first();
+      MeasureBase* m = score()->firstMeasure();
       while (m) {
             if (m == this)
                   return idx;

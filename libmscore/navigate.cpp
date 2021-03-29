@@ -277,7 +277,7 @@ Element* Score::firstElement(bool frame)
             if (mb && mb->isBox())
                   return mb;
             }
-      Segment *s = firstSegment(SegmentType::All);
+      Segment *s = firstSegmentMM(SegmentType::All);
       return s ? s->element(0) : nullptr;
       }
 
@@ -293,7 +293,7 @@ Element* Score::lastElement(bool frame)
                   return mb;
             }
       Element* re = 0;
-      Segment* seg = lastSegment();
+      Segment* seg = lastSegmentMM();
       if (!seg)
             return nullptr;
       while (true) {
@@ -575,13 +575,23 @@ Element* Score::nextElement()
                        else
                              return score()->firstElement();
                        }
+#if 1
+                  case ElementType::VOLTA_SEGMENT:
+#else
+                  case ElementType::VOLTA_SEGMENT: {
+                        // TODO: see Spanner::nextSpanner()
+                        System* sys = toSpannerSegment(e)->system();
+                        if (sys)
+                              staffId = sys->firstVisibleStaff();
+                        }
+                        // fall through
+#endif
                   case ElementType::SLUR_SEGMENT:
                   case ElementType::TEXTLINE_SEGMENT:
                   case ElementType::HAIRPIN_SEGMENT:
                   case ElementType::OTTAVA_SEGMENT:
                   case ElementType::TRILL_SEGMENT:
                   case ElementType::VIBRATO_SEGMENT:
-                  case ElementType::VOLTA_SEGMENT:
                   case ElementType::LET_RING_SEGMENT:
                   case ElementType::PALM_MUTE_SEGMENT:
                   case ElementType::PEDAL_SEGMENT: {
@@ -598,7 +608,7 @@ Element* Score::nextElement()
                                     Element* nextEl = nextSegment->firstElementOfSegment(nextSegment, staffId);
                                     if (nextEl)
                                           return nextEl;
-                                    nextSegment = nextSegment->next1();
+                                    nextSegment = nextSegment->next1MM();
                                     }
                               }
                         break;
@@ -618,7 +628,7 @@ Element* Score::nextElement()
                   case ElementType::VBOX:
                   case ElementType::HBOX:
                   case ElementType::TBOX: {
-                        MeasureBase* mb = toMeasureBase(e)->next();
+                        MeasureBase* mb = toMeasureBase(e)->nextMM();
                         if (!mb) {
                               break;
                               }
@@ -630,6 +640,9 @@ Element* Score::nextElement()
                         else {
                               return mb;
                               }
+                        }
+                  case ElementType::LAYOUT_BREAK: {
+                        staffId = 0; // otherwise it will equal -1, which breaks the navigation
                         }
                   default:
                         break;
@@ -682,13 +695,23 @@ Element* Score::prevElement()
                         Segment* s = toSegment(e);
                         return s->prevElement(staffId);
                         }
+#if 1
+                  case ElementType::VOLTA_SEGMENT:
+#else
+                  case ElementType::VOLTA_SEGMENT: {
+                        // TODO: see Spanner::nextSpanner()
+                        System* sys = toSpannerSegment(e)->system();
+                        if (sys)
+                              staffId = sys->firstVisibleStaff();
+                        }
+                        // fall through
+#endif
                   case ElementType::SLUR_SEGMENT:
                   case ElementType::TEXTLINE_SEGMENT:
                   case ElementType::HAIRPIN_SEGMENT:
                   case ElementType::OTTAVA_SEGMENT:
                   case ElementType::TRILL_SEGMENT:
                   case ElementType::VIBRATO_SEGMENT:
-                  case ElementType::VOLTA_SEGMENT:
                   case ElementType::PEDAL_SEGMENT: {
                         SpannerSegment* s = toSpannerSegment(e);
                         Spanner* sp = s->spanner();
@@ -741,7 +764,7 @@ Element* Score::prevElement()
                   case ElementType::VBOX:
                   case ElementType::HBOX:
                   case ElementType::TBOX: {
-                        MeasureBase* mb = toMeasureBase(e)->prev();
+                        MeasureBase* mb = toMeasureBase(e)->prevMM();
                         if (!mb) {
                               break;
                               }
@@ -755,6 +778,10 @@ Element* Score::prevElement()
                         else {
                               return mb;
                               }
+                        }
+                        break;
+                  case ElementType::LAYOUT_BREAK: {
+                        staffId = 0; // otherwise it will equal -1, which breaks the navigation
                         }
                   default:
                         break;

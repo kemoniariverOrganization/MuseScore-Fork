@@ -20,14 +20,43 @@
 #include "cocoabridge.h"
 #import <Cocoa/Cocoa.h>
 
-void  CocoaBridge::setAllowsAutomaticWindowTabbing(bool flag)
-{
-    if ([NSWindow respondsToSelector:@selector(allowsAutomaticWindowTabbing)])
-        [NSWindow setAllowsAutomaticWindowTabbing: flag];
-}
+id<NSObject> darkModeObserverToken;
 
-bool  CocoaBridge::isSystemDarkTheme()
-{
-    NSString *osxMode = [[NSUserDefaults standardUserDefaults] stringForKey:@"AppleInterfaceStyle"];
-    return ([osxMode isEqualToString:@"Dark"]);
-}
+void CocoaBridge::observeDarkModeSwitches(std::function<void()> f)
+      {
+      if (@available(macOS 10.14, *))
+            darkModeObserverToken = [[NSDistributedNotificationCenter defaultCenter]
+                                     addObserverForName:@"AppleInterfaceThemeChangedNotification" object:nil
+                                     queue:nil usingBlock:^(NSNotification*) {   f();   }];
+      }
+
+void CocoaBridge::removeObservers()
+      {
+      if (@available(macOS 10.14, *))
+            [[NSDistributedNotificationCenter defaultCenter] removeObserver:darkModeObserverToken];
+      }
+
+bool CocoaBridge::isSystemDarkTheme()
+      {
+      NSString *osxMode = [[NSUserDefaults standardUserDefaults] stringForKey:@"AppleInterfaceStyle"];
+      return ([osxMode isEqualToString:@"Dark"]);
+      }
+
+bool CocoaBridge::isSystemDarkModeSupported()
+      {
+      if (@available(macOS 10.14, *))
+            return true;
+      return false;
+      }
+
+void CocoaBridge::setWindowAppearanceIsDark(bool flag)
+      {
+      if (@available(macOS 10.14, *))
+            [NSApp setAppearance:[NSAppearance appearanceNamed:flag ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua]];
+      }
+
+void CocoaBridge::setAllowsAutomaticWindowTabbing(bool flag)
+      {
+      if ([NSWindow respondsToSelector:@selector(allowsAutomaticWindowTabbing)])
+            [NSWindow setAllowsAutomaticWindowTabbing: flag];
+      }

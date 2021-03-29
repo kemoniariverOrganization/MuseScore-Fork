@@ -107,12 +107,15 @@ void Stem::layout()
             else {                              // non-TAB
                   // move stem start to note attach point
                   Note* n  = up() ? chord()->downNote() : chord()->upNote();
-                  y1      += (up() ? n->stemUpSE().y() : n->stemDownNW().y());
+                  if ((up() && !n->mirror()) || (!up() && n->mirror()))
+                        y1 += n->stemUpSE().y();
+                  else
+                        y1 += n->stemDownNW().y();
                   rypos() = n->rypos();
                   }
             }
 
-      qreal lw5 = _lineWidth * .5 * mag();
+      qreal lw5 = 0.5 * lineWidthMag();
 
       line.setLine(0.0, y1, 0.0, l);
 
@@ -147,28 +150,31 @@ void Stem::spatiumChanged(qreal oldValue, qreal newValue)
 
 void Stem::draw(QPainter* painter) const
       {
+      if (!chord()) // may be need assert?
+            return;
+
       // hide if second chord of a cross-measure pair
-      if (chord() && chord()->crossMeasure() == CrossMeasure::SECOND)
+      if (chord()->crossMeasure() == CrossMeasure::SECOND)
             return;
 
       const Staff* st      = staff();
       const StaffType* stt = st ? st->staffType(chord()->tick()) : 0;
       bool useTab          = stt && stt->isTabStaff();
 
-      painter->setPen(QPen(curColor(), _lineWidth * mag(), Qt::SolidLine, Qt::RoundCap));
+      painter->setPen(QPen(curColor(), lineWidthMag(), Qt::SolidLine, Qt::FlatCap));
       painter->drawLine(line);
 
-      if (!(useTab && chord()))
+      if (!useTab)
             return;
 
       // TODO: adjust bounding rectangle in layout() for dots and for slash
       qreal sp = spatium();
-      bool _up = up();
+      bool isUp = up();
 
       // slashed half note stem
       if (chord()->durationType().type() == TDuration::DurationType::V_HALF && stt->minimStyle() == TablatureMinimStyle::SLASHED) {
             // position slashes onto stem
-            qreal y = _up ? -(_len+_userLen) + STAFFTYPE_TAB_SLASH_2STARTY_UP*sp : (_len+_userLen) - STAFFTYPE_TAB_SLASH_2STARTY_DN*sp;
+            qreal y = isUp ? -(_len+_userLen) + STAFFTYPE_TAB_SLASH_2STARTY_UP*sp : (_len+_userLen) - STAFFTYPE_TAB_SLASH_2STARTY_DN*sp;
             // if stems through, try to align slashes within or across lines
             if (stt->stemThrough()) {
                   qreal halfLineDist = stt->lineDistance().val() * sp * 0.5;
@@ -200,7 +206,7 @@ void Stem::draw(QPainter* painter) const
       int nDots = chord()->dots();
       if (nDots > 0 && !stt->stemThrough()) {
             qreal x     = chord()->dotPosX();
-            qreal y     = ( (STAFFTYPE_TAB_DEFAULTSTEMLEN_DN * 0.2) * sp) * (_up ? -1.0 : 1.0);
+            qreal y     = ( (STAFFTYPE_TAB_DEFAULTSTEMLEN_DN * 0.2) * sp) * (isUp ? -1.0 : 1.0);
             qreal step  = score()->styleS(Sid::dotDotDistance).val() * sp;
             for (int dot = 0; dot < nDots; dot++, x += step)
                   drawSymbol(SymId::augmentationDot, painter, QPointF(x, y));
@@ -397,7 +403,7 @@ QPointF Stem::hookPos() const
       {
       QPointF p(pos() + line.p2());
 
-      qreal xoff = _lineWidth * .5 * mag();
+      qreal xoff = 0.5 * lineWidthMag();
       p.rx() += xoff;
       return p;
       }

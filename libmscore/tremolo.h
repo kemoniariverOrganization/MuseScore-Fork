@@ -23,13 +23,13 @@ class Chord;
 // Tremolo subtypes:
 enum class TremoloType : signed char {
       INVALID_TREMOLO = -1,
-      R8=0, R16, R32, R64, BUZZ_ROLL,  // one note tremolo (repeat)
+      R8 = 0, R16, R32, R64, BUZZ_ROLL,  // one note tremolo (repeat)
       C8, C16, C32, C64     // two note tremolo (change)
       };
 
-enum class TremoloPlacement : signed char {
-      DEFAULT = 0,
-      STEM_CENTER
+// only applicable to minim two-note tremolo in non-TAB staves
+enum class TremoloStyle : signed char {
+      DEFAULT = 0, TRADITIONAL, TRADITIONAL_ALTERNATE
       };
 
 //---------------------------------------------------------
@@ -37,14 +37,14 @@ enum class TremoloPlacement : signed char {
 //---------------------------------------------------------
 
 class Tremolo final : public Element {
-      TremoloType _tremoloType;
-      Chord* _chord1;
-      Chord* _chord2;
+      TremoloType _tremoloType { TremoloType::R8 };
+      Chord* _chord1 { nullptr };
+      Chord* _chord2 { nullptr };
       TDuration _durationType;
       QPainterPath path;
 
       int _lines;       // derived from _subtype
-      TremoloPlacement _tremoloPlacement = TremoloPlacement::DEFAULT;
+      TremoloStyle _style    { TremoloStyle::DEFAULT };
 
       QPainterPath basePath() const;
       void computeShape();
@@ -55,10 +55,10 @@ class Tremolo final : public Element {
       Tremolo(Score*);
       Tremolo(const Tremolo&);
       Tremolo &operator=(const Tremolo&) = delete;
-      virtual Tremolo* clone() const       { return new Tremolo(*this); }
-      virtual ElementType type() const     { return ElementType::TREMOLO; }
-      virtual int subtype() const override { return (int) _tremoloType; }
-      virtual QString subtypeName() const override;
+      Tremolo* clone() const override      { return new Tremolo(*this); }
+      ElementType type() const override    { return ElementType::TREMOLO; }
+      int subtype() const override         { return static_cast<int>(_tremoloType); }
+      QString subtypeName() const override;
 
       QString tremoloTypeName() const;
       void setTremoloType(const QString& s);
@@ -70,12 +70,15 @@ class Tremolo final : public Element {
       void setTremoloType(TremoloType t);
       TremoloType tremoloType() const      { return _tremoloType; }
 
-      virtual qreal mag() const;
-      virtual void draw(QPainter*) const;
-      virtual void layout();
+      qreal minHeight() const;
+
+      qreal chordMag() const;
+      qreal mag() const override;
+      void draw(QPainter*) const override;
+      void layout() override;
       void layout2();
-      virtual void write(XmlWriter& xml) const;
-      virtual void read(XmlReader&);
+      void write(XmlWriter& xml) const override;
+      void read(XmlReader&) override;
 
       Chord* chord1() const { return _chord1; }
       Chord* chord2() const { return _chord2; }
@@ -88,21 +91,30 @@ class Tremolo final : public Element {
             _chord2 = c2;
             }
       Fraction tremoloLen() const;
-      bool twoNotes() const { return tremoloType() >= TremoloType::C8; } // is it a two note tremolo?
+      bool isBuzzRoll() const { return _tremoloType == TremoloType::BUZZ_ROLL; }
+      bool twoNotes() const { return _tremoloType >= TremoloType::C8; } // is it a two note tremolo?
       int lines() const { return _lines; }
 
       bool placeMidStem() const;
 
-      virtual void spatiumChanged(qreal oldValue, qreal newValue) override;
-      virtual void localSpatiumChanged(qreal oldValue, qreal newValue) override;
-      virtual void styleChanged() override;
+      bool crossStaffBeamBetween() const;
 
-      virtual QString accessibleInfo() const override;
+      void spatiumChanged(qreal oldValue, qreal newValue) override;
+      void localSpatiumChanged(qreal oldValue, qreal newValue) override;
+      void styleChanged() override;
 
-      virtual QVariant getProperty(Pid propertyId) const override;
-      virtual bool setProperty(Pid propertyId, const QVariant&) override;
-      virtual Pid propertyId(const QStringRef& xmlName) const override;
-      virtual QString propertyUserValue(Pid) const override;
+      QString accessibleInfo() const override;
+
+      TremoloStyle style() const { return _style; }
+      void setStyle(TremoloStyle v) { _style = v; }
+
+      bool customStyleApplicable() const;
+
+      QVariant getProperty(Pid propertyId) const override;
+      bool setProperty(Pid propertyId, const QVariant&) override;
+      QVariant propertyDefault(Pid propertyId) const override;
+      Pid propertyId(const QStringRef& xmlName) const override;
+      QString propertyUserValue(Pid) const override;
       };
 
 

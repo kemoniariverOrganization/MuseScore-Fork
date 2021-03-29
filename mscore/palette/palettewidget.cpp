@@ -26,6 +26,7 @@
 #include "qml/nativetooltip.h"
 
 #include <QQmlContext>
+#include <QTimer>
 
 namespace Ms {
 
@@ -72,8 +73,6 @@ PaletteWidget::PaletteWidget(PaletteWorkspace* w, QQmlEngine* e, QWidget* parent
       {
       registerQmlTypes();
 
-      const bool useSinglePalette = preferences.getBool(PREF_APP_USESINGLEPALETTE);
-
       QQmlContext* ctx = rootContext();
       Q_ASSERT(ctx);
 
@@ -84,14 +83,6 @@ PaletteWidget::PaletteWidget(PaletteWorkspace* w, QQmlEngine* e, QWidget* parent
       ctx->setContextProperty("mscore", qmlInterface);
 
       setSource(QUrl(qmlSourcePrefix() + "qml/palettes/PalettesWidget.qml"));
-
-      singlePaletteAction = new QAction(this);
-      singlePaletteAction->setCheckable(true);
-      singlePaletteAction->setChecked(useSinglePalette);
-      addAction(singlePaletteAction);
-      connect(singlePaletteAction, &QAction::toggled, this, &PaletteWidget::setSinglePalette);
-
-      setContextMenuPolicy(Qt::ActionsContextMenu);
       setObjectName("palette-widget");
       setAllowedAreas(Qt::DockWidgetAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea));
 
@@ -103,22 +94,12 @@ PaletteWidget::PaletteWidget(PaletteWorkspace* w, QWidget* parent, Qt::WindowFla
       {}
 
 //---------------------------------------------------------
-//   PaletteWidget::setSinglePalette
-//---------------------------------------------------------
-
-void PaletteWidget::setSinglePalette(bool val)
-      {
-      preferences.setPreference(PREF_APP_USESINGLEPALETTE, val);
-      }
-
-//---------------------------------------------------------
 //   retranslate
 //---------------------------------------------------------
 
 void PaletteWidget::retranslate()
       {
       setWindowTitle(qApp->translate("Ms::PaletteBox", "Palettes"));
-      singlePaletteAction->setText(qApp->translate("Ms::PaletteBox", "Single Palette"));
       }
 
 //---------------------------------------------------------
@@ -130,7 +111,7 @@ void PaletteWidget::setupStyle()
       if (preferences.getBool(PREF_UI_CANVAS_FG_USECOLOR) && preferences.getBool(PREF_UI_CANVAS_FG_USECOLOR_IN_PALETTES))
             qmlInterface->setPaletteBackground(preferences.getColor(PREF_UI_CANVAS_FG_COLOR));
       else
-            qmlInterface->setPaletteBackground(QColor("#f9f9f9"));
+            qmlInterface->setPaletteBackground(QColor(0xf9f9f9));
       }
 
 //---------------------------------------------------------
@@ -139,8 +120,13 @@ void PaletteWidget::setupStyle()
 
 void PaletteWidget::activateSearchBox()
       {
+      int delay = isFloating() ? 300 : 0;
       ensureQmlViewFocused();
-      qmlInterface->requestPaletteSearch();
+      QTimer::singleShot(delay, this, [&](){
+          const bool invoked = QMetaObject::invokeMethod(rootObject(), "requestPaletteSearch");
+          Q_UNUSED(invoked);
+          Q_ASSERT(invoked);
+          });
       }
 
 //---------------------------------------------------------
@@ -226,4 +212,4 @@ void PaletteWidget::registerQmlTypes()
       registered = true;
       }
 
-}
+} // namespace Ms

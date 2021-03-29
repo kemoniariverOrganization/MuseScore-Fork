@@ -15,6 +15,8 @@
  Implementation of class Selection plus other selection related functions.
 */
 
+#include "global/log.h"
+
 #include "mscore.h"
 #include "arpeggio.h"
 #include "barline.h"
@@ -54,6 +56,8 @@
 #include "part.h"
 #include "accidental.h"
 #include "articulation.h"
+#include "stafftext.h"
+#include "sticking.h"
 
 namespace Ms {
 
@@ -171,7 +175,7 @@ ChordRest* Selection::currentCR() const
       // no selection yet - start at very beginning, not first cr
       if (_currentTick == Fraction(-1, 1))
             return nullptr;
-      Segment* s = score()->tick2rightSegment(_currentTick);
+      Segment* s = score()->tick2rightSegment(_currentTick, true);
       if (!s)
             return nullptr;
       int track = _currentTrack;
@@ -253,13 +257,15 @@ ChordRest* Selection::lastChordRest(int track) const
       {
       if (_el.size() == 1) {
             Element* el = _el[0];
-            if (el && el->isNote())
-                  return toChordRest(el->parent());
-            else if (el->isChord() || el->isRest() || el->isRepeatMeasure())
-                  return toChordRest(el);
-            return 0;
+            if (el) {
+                  if (el->isNote())
+                        return toChordRest(el->parent());
+                  else if (el->isChord() || el->isRest() || el->isRepeatMeasure())
+                        return toChordRest(el);
+                  }
+            return nullptr;
             }
-      ChordRest* cr = 0;
+      ChordRest* cr = nullptr;
       for (auto el : _el) {
             if (el->isNote())
                   el = toNote(el)->chord();
@@ -321,7 +327,13 @@ static QRectF changeSelection(Element* e, bool b)
 
 void Selection::clear()
       {
-      for (Element* e : _el) {
+
+      IF_ASSERT_FAILED(!isLocked()) {
+            LOGE() << "selection locked, reason: " << lockReason();
+            return;
+            }
+
+      for (Element* e : qAsConst(_el)) {
             if (e->isSpanner()) {   // TODO: only visible elements should be selectable?
                   Spanner* sp = toSpanner(e);
                   for (auto s : sp->spannerSegments())
@@ -358,6 +370,10 @@ void Selection::remove(Element* el)
 
 void Selection::add(Element* el)
       {
+      IF_ASSERT_FAILED(!isLocked()) {
+            LOGE() << "selection locked, reason: " << lockReason();
+            return;
+            }
       _el.append(el);
       update();
       }
@@ -369,40 +385,44 @@ void Selection::add(Element* el)
 
 bool SelectionFilter::canSelect(const Element* e) const
       {
-      if (e->isDynamic() || e->isHairpin())
-          return isFiltered(SelectionFilterType::DYNAMIC);
-      if (e->isArticulation() || e->isTrill() || e->isVibrato() || e->isFermata())
-          return isFiltered(SelectionFilterType::ARTICULATION);
+      if (e->isDynamic())
+            return isFiltered(SelectionFilterType::DYNAMIC);
+      if (e->isHairpin())
+            return isFiltered(SelectionFilterType::HAIRPIN);
+      if ((e->isArticulation() && !toArticulation(e)->isOrnament()) || e->isVibrato() || e->isFermata())
+            return isFiltered(SelectionFilterType::ARTICULATION);
+      if ((e->isArticulation() && toArticulation(e)->isOrnament()) || e->isTrill())
+            return isFiltered(SelectionFilterType::ORNAMENT);
       if (e->type() == ElementType::LYRICS)
-          return isFiltered(SelectionFilterType::LYRICS);
+            return isFiltered(SelectionFilterType::LYRICS);
       if (e->type() == ElementType::FINGERING)
-          return isFiltered(SelectionFilterType::FINGERING);
+            return isFiltered(SelectionFilterType::FINGERING);
       if (e->type() == ElementType::HARMONY)
-          return isFiltered(SelectionFilterType::CHORD_SYMBOL);
+            return isFiltered(SelectionFilterType::CHORD_SYMBOL);
       if (e->type() == ElementType::SLUR)
-          return isFiltered(SelectionFilterType::SLUR);
+            return isFiltered(SelectionFilterType::SLUR);
       if (e->type() == ElementType::FIGURED_BASS)
-          return isFiltered(SelectionFilterType::FIGURED_BASS);
+            return isFiltered(SelectionFilterType::FIGURED_BASS);
       if (e->type() == ElementType::OTTAVA)
-          return isFiltered(SelectionFilterType::OTTAVA);
+            return isFiltered(SelectionFilterType::OTTAVA);
       if (e->type() == ElementType::PEDAL)
-          return isFiltered(SelectionFilterType::PEDAL_LINE);
+            return isFiltered(SelectionFilterType::PEDAL_LINE);
       if (e->type() == ElementType::ARPEGGIO)
-          return isFiltered(SelectionFilterType::ARPEGGIO);
+            return isFiltered(SelectionFilterType::ARPEGGIO);
       if (e->type() == ElementType::GLISSANDO)
-          return isFiltered(SelectionFilterType::GLISSANDO);
+            return isFiltered(SelectionFilterType::GLISSANDO);
       if (e->type() == ElementType::FRET_DIAGRAM)
-          return isFiltered(SelectionFilterType::FRET_DIAGRAM);
+            return isFiltered(SelectionFilterType::FRET_DIAGRAM);
       if (e->type() == ElementType::BREATH)
-          return isFiltered(SelectionFilterType::BREATH);
+            return isFiltered(SelectionFilterType::BREATH);
       if (e->isTextBase()) // only TEXT, INSTRCHANGE and STAFFTEXT are caught here, rest are system thus not in selection
-          return isFiltered(SelectionFilterType::OTHER_TEXT);
+            return isFiltered(SelectionFilterType::OTHER_TEXT);
       if (e->isSLine()) // NoteLine, Volta
-          return isFiltered(SelectionFilterType::OTHER_LINE);
+            return isFiltered(SelectionFilterType::OTHER_LINE);
       if (e->isTremolo())
-          return isFiltered(SelectionFilterType::TREMOLO);
+            return isFiltered(SelectionFilterType::TREMOLO);
       if (e->isChord() && toChord(e)->isGrace())
-          return isFiltered(SelectionFilterType::GRACE_NOTE);
+            return isFiltered(SelectionFilterType::GRACE_NOTE);
       return true;
       }
 
@@ -432,6 +452,10 @@ bool SelectionFilter::canSelectVoice(int track) const
 
 void Selection::appendFiltered(Element* e)
       {
+      IF_ASSERT_FAILED(!isLocked()) {
+            LOGE() << "selection locked, reason: " << lockReason();
+            return;
+            }
       if (selectionFilter().canSelect(e))
             _el.append(e);
       }
@@ -442,6 +466,10 @@ void Selection::appendFiltered(Element* e)
 
 void Selection::appendChord(Chord* chord)
       {
+      IF_ASSERT_FAILED(!isLocked()) {
+            LOGE() << "selection locked, reason: " << lockReason();
+            return;
+            }
       if (chord->beam() && !_el.contains(chord->beam()))
             _el.append(chord->beam());
       if (chord->stem())
@@ -487,6 +515,10 @@ void Selection::appendChord(Chord* chord)
 
 void Selection::updateSelectedElements()
       {
+      IF_ASSERT_FAILED(!isLocked()) {
+            LOGE() << "selection locked, reason: " << lockReason();
+            return;
+            }
       if (_state != SelState::RANGE) {
             update();
             return;
@@ -507,12 +539,14 @@ void Selection::updateSelectedElements()
                   // the first segment for them.
                   return;
                   }
+            if (s2 && s2 == s2->measure()->first())
+                  s2 = s2->prev1();   // we want the last segment of the previous measure
             setRange(s1, s2, staffStart, staffEnd);
             _plannedTick1 = Fraction(-1,1);
             _plannedTick2 = Fraction(-1,1);
             }
 
-      for (Element* e : _el)
+      for (Element* e : qAsConst(_el))
             e->setSelected(false);
       _el.clear();
 
@@ -638,7 +672,7 @@ void Selection::setRangeTicks(const Fraction& tick1, const Fraction& tick2, int 
 
 void Selection::update()
       {
-      for (Element* e : _el)
+      for (Element* e : qAsConst(_el))
             e->setSelected(true);
       updateState();
       }
@@ -947,6 +981,12 @@ Enabling copying of more element types requires enabling pasting in Score::paste
                               break;
                               }
                         continue;
+                  case ElementType::STAFF_TEXT:
+                        seg = toStaffText(e)->segment();
+                        break;
+                  case ElementType::STICKING:
+                        seg = toSticking(e)->segment();
+                        break;
                   case ElementType::FIGURED_BASS:
                         seg = toFiguredBass(e)->segment();
                         break;
@@ -994,13 +1034,13 @@ Enabling copying of more element types requires enabling pasting in Score::paste
       int   currTrack = -1;
       for (auto iter = map.cbegin(); iter != map.cend(); ++iter) {
             int   numSegs;
-            int   track = (int)(iter->first >> 32);
+            int   track = static_cast<int>(iter->first >> 32);
             if (currTrack != track) {
                   xml.tag("trackOffset", track - topTrack);
                   currTrack = track;
                   seg       = firstSeg;
                   }
-            xml.tag("tickOffset", (int)(iter->first & 0xFFFFFFFF) - firstTick.ticks());
+            xml.tag("tickOffset", static_cast<int>(iter->first & 0xFFFFFFFF) - firstTick.ticks());
             numSegs = 0;
             // with figured bass, we need to look for the proper segment
             // not only according to ChordRest elements, but also annotations

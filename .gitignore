@@ -13,6 +13,8 @@ win64build
 win64install
 build.xcode
 applebuild
+build.artifacts
+MuseScorePortable
 /*.config
 /*.creator
 /*.files
@@ -27,11 +29,13 @@ build.qt5
 *.sfd~
 /.project
 mscore/revision.h
+local_build_revision.env
 .DS_Store
 CMakeLists.txt.user.*
 *.qmlc
 *.jsc
 vtest/html
+vtest/compare
 thirdparty/mupdf-qt
 vtest/LOG
 vtest/META-INF

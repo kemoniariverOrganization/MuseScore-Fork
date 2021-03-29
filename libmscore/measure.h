@@ -30,6 +30,7 @@ class Tuplet;
 class Staff;
 class Chord;
 class MeasureNumber;
+class MMRestRange;
 class ChordRest;
 class Score;
 class MuseScoreView;
@@ -95,27 +96,29 @@ class Measure final : public MeasureBase {
       Measure(Score* = 0);
       Measure(const Measure&);
       ~Measure();
-      virtual Measure* clone() const override     { return new Measure(*this); }
-      virtual ElementType type() const override { return ElementType::MEASURE; }
-      virtual void setScore(Score* s) override;
+
+      Measure* clone() const override     { return new Measure(*this); }
+      ElementType type() const override { return ElementType::MEASURE; }
+      void setScore(Score* s) override;
       Measure* cloneMeasure(Score*, const Fraction& tick, TieMap*);
 
       void read(XmlReader&, int idx);
       void read(XmlReader& d) { read(d, 0); }
-      virtual void readAddConnector(ConnectorInfoReader* info, bool pasteMode) override;
-      virtual void write(XmlWriter& xml) const override { Element::write(xml); }
+      void readAddConnector(ConnectorInfoReader* info, bool pasteMode) override;
+      void write(XmlWriter& xml) const override { Element::write(xml); }
       void write(XmlWriter&, int, bool writeSystemElements, bool forceTimeSig) const;
       void writeBox(XmlWriter&) const;
       void readBox(XmlReader&);
-      virtual bool isEditable() const override { return false; }
+      bool isEditable() const override { return false; }
       void checkMeasure(int idx);
 
-      virtual void add(Element*) override;
-      virtual void remove(Element*) override;
-      virtual void change(Element* o, Element* n) override;
-      virtual void spatiumChanged(qreal oldValue, qreal newValue) override;
+      void add(Element*) override;
+      void remove(Element*) override;
+      void change(Element* o, Element* n) override;
+      void spatiumChanged(qreal oldValue, qreal newValue) override;
 
       System* system() const                      { return (System*)parent(); }
+      bool hasVoices(int staffIdx, Fraction stick, Fraction len) const;
       bool hasVoices(int staffIdx) const;
       void setHasVoices(int staffIdx, bool v);
 
@@ -128,6 +131,8 @@ class Measure final : public MeasureBase {
       void setCorrupted(int staffIdx, bool val);
       void setNoText(int staffIdx, MeasureNumber*);
       MeasureNumber* noText(int staffIdx) const;
+      void setMMRangeText(int staffIdx, MMRestRange *);
+      MMRestRange *mmRangeText(int staffIdx) const;
 
       void createStaves(int);
 
@@ -146,6 +151,7 @@ class Measure final : public MeasureBase {
       Segment* firstEnabled() const        { return _segments.first(ElementFlag::ENABLED); }
 
       Ms::Segment* last() const            { return _segments.last(); }
+      Segment* lastEnabled() const         { return _segments.last(ElementFlag::ENABLED); }
       SegmentList& segments()              { return _segments; }
       const SegmentList& segments() const  { return _segments; }
 
@@ -155,18 +161,24 @@ class Measure final : public MeasureBase {
       void stretchMeasure(qreal stretch);
       Fraction computeTicks();
       void layout2();
+
+      bool showsMeasureNumber();
+      bool showsMeasureNumberInAutoMode();
       void layoutMeasureNumber();
+      void layoutMMRestRange();
 
       Chord* findChord(Fraction tick, int track);
       ChordRest* findChordRest(Fraction tick, int track);
       Fraction snap(const Fraction& tick, const QPointF p) const;
       Fraction snapNote(const Fraction& tick, const QPointF p, int staff) const;
 
+      Segment* searchSegment(qreal x, SegmentType st, int strack, int etrack, const Segment* preferredSegment = nullptr, qreal spacingFactor = 0.5) const;
+
       void insertStaff(Staff*, int staff);
       void insertMStaff(MStaff* staff, int idx);
       void removeMStaff(MStaff* staff, int idx);
 
-      virtual void moveTicks(const Fraction& diff) override;
+      void moveTicks(const Fraction& diff) override;
 
       void cmdRemoveStaves(int s, int e);
       void cmdAddStaves(int s, int e, bool createRest);
@@ -178,8 +190,8 @@ class Measure final : public MeasureBase {
 
       void sortStaves(QList<int>& dst);
 
-      virtual bool acceptDrop(EditData&) const override;
-      virtual Element* drop(EditData&) override;
+      bool acceptDrop(EditData&) const override;
+      Element* drop(EditData&) override;
 
       int repeatCount() const         { return _repeatCount; }
       void setRepeatCount(int val)    { _repeatCount = val; }
@@ -202,7 +214,7 @@ class Measure final : public MeasureBase {
 
       RepeatMeasure* cmdInsertRepeatMeasure(int staffIdx);
 
-      virtual void scanElements(void* data, void (*func)(void*, Element*), bool all=true) override;
+      void scanElements(void* data, void (*func)(void*, Element*), bool all=true) override;
       void createVoice(int track);
       void adjustToLen(Fraction, bool appendRestsIfNecessary = true);
 
@@ -212,12 +224,14 @@ class Measure final : public MeasureBase {
       void checkMultiVoices(int staffIdx);
       bool hasVoice(int track) const;
       bool isEmpty(int staffIdx) const;
+      bool isCutawayClef(int staffIdx) const;
       bool isFullMeasureRest() const;
       bool isRepeatMeasure(const Staff* staff) const;
       bool visible(int staffIdx) const;
       bool stemless(int staffIdx) const;
       bool isFinalMeasureOfSection() const;
       bool isAnacrusis() const;
+      bool isFirstInSystem() const;
 
       bool breakMultiMeasureRest() const        { return _breakMultiMeasureRest; }
       void setBreakMultiMeasureRest(bool val)   { _breakMultiMeasureRest = val;  }
@@ -225,15 +239,14 @@ class Measure final : public MeasureBase {
       bool empty() const;
       bool isOnlyRests(int track) const;
       bool isOnlyDeletedRests(int track) const;
-      bool isOnlyDeletedRests(int track, const Fraction& stick, const Fraction& etick) const;
 
       int playbackCount() const      { return _playbackCount; }
       void setPlaybackCount(int val) { _playbackCount = val; }
       QRectF staffabbox(int staffIdx) const;
 
-      virtual QVariant getProperty(Pid propertyId) const override;
-      virtual bool setProperty(Pid propertyId, const QVariant&) override;
-      virtual QVariant propertyDefault(Pid) const override;
+      QVariant getProperty(Pid propertyId) const override;
+      bool setProperty(Pid propertyId, const QVariant&) override;
+      QVariant propertyDefault(Pid) const override;
 
       bool hasMMRest() const        { return _mmRest != 0; }
       bool isMMRest() const         { return _mmRestCount > 0; }
@@ -247,7 +260,7 @@ class Measure final : public MeasureBase {
 
       Element* nextElementStaff(int staff);
       Element* prevElementStaff(int staff);
-      virtual QString accessibleInfo() const override;
+      QString accessibleInfo() const override;
 
       void addSystemHeader(bool firstSystem);
       void addSystemTrailer(Measure* nm);
@@ -257,11 +270,11 @@ class Measure final : public MeasureBase {
       const BarLine* endBarLine() const;
       BarLineType endBarLineType() const;
       bool endBarLineVisible() const;
-      virtual void triggerLayout() const override;
+      void triggerLayout() const override;
       qreal basicStretch() const;
       qreal basicWidth() const;
       int layoutWeight(int maxMMRestLength = 0) const;
-      virtual void computeMinWidth();
+      void computeMinWidth();
       void checkHeader();
       void checkTrailer();
       void setStretchedWidth(qreal);
@@ -270,4 +283,3 @@ class Measure final : public MeasureBase {
 
 }     // namespace Ms
 #endif
-

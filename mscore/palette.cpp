@@ -263,7 +263,7 @@ void Palette::contextMenuEvent(QContextMenuEvent* event)
       int i = idx(event->pos());
       if (i == -1) {
             // palette context menu
-            if (!_moreElements)
+            if (_isSymbolsPaletteInMasterPalette || !_moreElements)
                   return;
             QMenu menu;
             QAction* moreAction = menu.addAction(tr("More Elements…"));
@@ -271,6 +271,20 @@ void Palette::contextMenuEvent(QContextMenuEvent* event)
             QAction* action = menu.exec(mapToGlobal(event->pos()));
             if (action == moreAction)
                   emit displayMore(_name);
+            return;
+            }
+
+      if (_isSymbolsPaletteInMasterPalette) {
+            QMenu menu;
+            QAction* copyNameMenuItem = menu.addAction(tr("Copy SMuFL Symbol Code"));
+            if (menu.exec(mapToGlobal(event->pos())) == copyNameMenuItem) {
+                  PaletteCell* cell = cellAt(i);
+                  if (cell) {
+                        QRegularExpression regex("<sym>(.+?)</sym>");
+                        QString symSmuflName = QString("<sym>%1</sym>").arg(regex.match(cell->name).captured(1));
+                        QApplication::clipboard()->setText(symSmuflName);
+                        }
+                  }
             return;
             }
 
@@ -443,7 +457,7 @@ void Palette::mouseMoveEvent(QMouseEvent* ev)
 //   applyDrop
 //---------------------------------------------------------
 
-static void applyDrop(Score* score, ScoreView* viewer, Element* target, Element* e, Qt::KeyboardModifiers modifiers, QPointF pt = QPointF())
+static void applyDrop(Score* score, ScoreView* viewer, Element* target, Element* e, Qt::KeyboardModifiers modifiers, QPointF pt = QPointF(), bool pasteMode = false)
       {
       EditData& dropData = viewer->getEditData();
       dropData.pos         = pt.isNull() ? target->pagePos() : pt;
@@ -458,6 +472,7 @@ static void applyDrop(Score* score, ScoreView* viewer, Element* target, Element*
 //printf("<<%s>>\n", a.data());
 
             XmlReader n(a);
+            n.setPasteMode(pasteMode);
             Fraction duration;  // dummy
             QPointF dragOffset;
             ElementType type = Element::readType(n, &dragOffset, &duration);
@@ -467,6 +482,9 @@ static void applyDrop(Score* score, ScoreView* viewer, Element* target, Element*
             dropData.dropElement->styleChanged();   // update to local style
 
             Element* el = target->drop(dropData);
+            if (el && el->isInstrumentChange()) {
+                  mscore->currentScoreView()->selectInstrument(toInstrumentChange(el));
+                  }
             if (el && !viewer->noteEntryMode())
                   score->select(el, SelectType::SINGLE, 0);
             dropData.dropElement = 0;
@@ -491,7 +509,7 @@ bool Palette::applyPaletteElement(Element* element, Qt::KeyboardModifiers modifi
 //             element = cell->element.get();
       if (element == 0)
             return false;
-      
+
       if (element->isSpanner())
             TourHandler::startTour("spanner-drop-apply");
 
@@ -528,19 +546,41 @@ bool Palette::applyPaletteElement(Element* element, Qt::KeyboardModifiers modifi
                         addSingle = true;
                   }
             if (viewer->mscoreState() == STATE_NOTE_ENTRY_STAFF_DRUM && element->isChord()) {
-                  // use input position rather than selection if possible
-                  Element* e = score->inputState().cr();
+                  InputState& is = score->inputState();
+                  Element* e = nullptr;
+                  if (!(modifiers & Qt::ShiftModifier)) {
+                        // shift+double-click: add note to "chord"
+                        // use input position rather than selection if possible
+                        // look for a cr in the voice predefined for the drum in the palette
+                        // back up if necessary
+                        // TODO: refactor this with similar code in putNote()
+                        if (is.segment()) {
+                              Segment* seg = is.segment();
+                              while (seg) {
+                                    if (seg->element(is.track()))
+                                          break;
+                                    seg = seg->prev(SegmentType::ChordRest);
+                                    }
+                              if (seg)
+                                    is.setSegment(seg);
+                              else
+                                    is.setSegment(is.segment()->measure()->first(SegmentType::ChordRest));
+                              }
+                        score->expandVoice();
+                        e = is.cr();
+                        }
                   if (!e)
                         e = sel.elements().first();
                   if (e) {
                         // get note if selection was full chord
                         if (e->isChord())
                               e = toChord(e)->upNote();
-                        // use voice of element being added to (otherwise we can might corrupt the measure)
-                        element->setTrack(e->voice());
-                        applyDrop(score, viewer, e, element, modifiers);
+                        applyDrop(score, viewer, e, element, modifiers, QPointF(), true);
+                        // note has already been played (and what would play otherwise may be *next* input position)
+                        score->setPlayNote(false);
+                        score->setPlayChord(false);
                         // continue in same track
-                        score->inputState().setTrack(e->track());
+                        is.setTrack(e->track());
                         }
                   else
                         qDebug("nowhere to place drum note");
@@ -550,7 +590,7 @@ bool Palette::applyPaletteElement(Element* element, Qt::KeyboardModifiers modifi
                   score->cmdToggleLayoutBreak(breakElement->layoutBreakType());
                   }
             else if (element->isSlur() && addSingle) {
-                  viewer->addSlur(toSlur(element));
+                  viewer->cmdAddSlur(toSlur(element));
                   }
             else if (element->isSLine() && !element->isGlissando() && addSingle) {
                   Segment* startSegment = cr1->segment();
@@ -660,7 +700,7 @@ bool Palette::applyPaletteElement(Element* element, Qt::KeyboardModifiers modifi
                                                 Interval v = staff->part()->instrument(tick1)->transpose();
                                                 if (!v.isZero()) {
                                                       Key k = okeysig->key();
-                                                      okeysig->setKey(transposeKey(k, v));
+                                                      okeysig->setKey(transposeKey(k, v, staff->part()->preferSharpFlat()));
                                                       }
                                                 }
                                           oelement = okeysig;
@@ -702,13 +742,15 @@ bool Palette::applyPaletteElement(Element* element, Qt::KeyboardModifiers modifi
                         }
                   }
             else if (element->isSlur()) {
-                  viewer->addSlur(toSlur(element));
+                  viewer->cmdAddSlur(toSlur(element));
                   }
             else if (element->isSLine() && element->type() != ElementType::GLISSANDO) {
                   Segment* startSegment = sel.startSegment();
                   Segment* endSegment = sel.endSegment();
-                  int endStaff = sel.staffEnd();
-                  for (int i = sel.staffStart(); i < endStaff; ++i) {
+                  bool firstStaffOnly = (element->isVolta() || (element->isTextLine() && toTextLine(element)->systemFlag())) && !(modifiers & Qt::ControlModifier);
+                  int startStaff = firstStaffOnly ? 0 : sel.staffStart();
+                  int endStaff   = firstStaffOnly ? 1 : sel.staffEnd();
+                  for (int i = startStaff; i < endStaff; ++i) {
                         Spanner* spanner = static_cast<Spanner*>(element->clone());
                         spanner->setScore(score);
                         spanner->styleChanged();
@@ -720,6 +762,7 @@ bool Palette::applyPaletteElement(Element* element, Qt::KeyboardModifiers modifi
                   int track2 = sel.staffEnd() * VOICES;
                   Segment* startSegment = sel.startSegment();
                   Segment* endSegment = sel.endSegment(); //keep it, it could change during the loop
+
                   for (Segment* s = startSegment; s && s != endSegment; s = s->next1()) {
                         for (int track = track1; track < track2; ++track) {
                               Element* e = s->element(track);
@@ -727,8 +770,11 @@ bool Palette::applyPaletteElement(Element* element, Qt::KeyboardModifiers modifi
                                     continue;
                               if (e->isChord()) {
                                     Chord* chord = toChord(e);
-                                    for (Note* n : chord->notes())
+                                    for (Note* n : chord->notes()) {
                                           applyDrop(score, viewer, n, element, modifiers);
+                                          if (!(element->isAccidental() || element->isNoteHead())) // only these need to apply to every note
+                                              break;
+                                        }
                                     }
                               else {
                                     // do not apply articulation to barline in a range selection
@@ -736,6 +782,8 @@ bool Palette::applyPaletteElement(Element* element, Qt::KeyboardModifiers modifi
                                           applyDrop(score, viewer, e, element, modifiers);
                                     }
                               }
+                        if (!element->placeMultiple())
+                              break;
                         }
                   }
             }
@@ -1924,7 +1972,7 @@ void Palette::dropEvent(QDropEvent* event)
             event->ignore();
             return;
             }
-      
+
       if (e->isFretDiagram()) {
             name = toFretDiagram(e)->harmonyText();
             }

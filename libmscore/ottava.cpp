@@ -212,7 +212,8 @@ Sid Ottava::getPropertyStyle(Pid pid) const
 Ottava::Ottava(Score* s)
    : TextLineBase(s, ElementFlag::ON_STAFF | ElementFlag::MOVABLE)
       {
-      _ottavaType = OttavaType::OTTAVA_8VA;
+      _ottavaType  = OttavaType::OTTAVA_8VA;
+      _numbersOnly = false;
       setBeginTextPlace(PlaceText::LEFT);
       setContinueTextPlace(PlaceText::LEFT);
       setEndHookType(HookType::HOOK_90);
@@ -437,7 +438,7 @@ Pid Ottava::propertyId(const QStringRef& name) const
 
 QString Ottava::accessibleInfo() const
       {
-      return QString("%1: %2").arg(Element::accessibleInfo()).arg(ottavaDefault[static_cast<int>(ottavaType())].name);
+      return QString("%1: %2").arg(Element::accessibleInfo(), ottavaDefault[static_cast<int>(ottavaType())].name);
       }
 
 //---------------------------------------------------------

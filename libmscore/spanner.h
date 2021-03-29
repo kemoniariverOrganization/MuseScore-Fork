@@ -28,21 +28,6 @@ enum class SpannerSegmentType {
       };
 
 //---------------------------------------------------------
-//   SpannerEditData
-//---------------------------------------------------------
-
-class SpannerEditData : public ElementEditData {
-   public:
-      Element* editStartElement;
-      Element* editEndElement;
-      int editTick;
-      int editTick2;
-      int editTrack2;
-      QList<QPointF> userOffsets;
-      QList<QPointF> userOffsets2;
-      };
-
-//---------------------------------------------------------
 //   @@ SpannerSegment
 //!    parent: System
 //---------------------------------------------------------
@@ -97,6 +82,8 @@ class SpannerSegment : public Element {
       virtual bool isEditable() const override { return true; }
 
       QByteArray mimeData(const QPointF& dragOffset) const override;
+
+      virtual void spatiumChanged(qreal ov, qreal nv) override;
 
       virtual QVariant getProperty(Pid id) const override;
       virtual bool setProperty(Pid id, const QVariant& v) override;

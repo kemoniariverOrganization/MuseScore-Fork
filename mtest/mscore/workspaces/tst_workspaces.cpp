@@ -61,7 +61,7 @@ class TestWorkspaces : public QObject
       void cleanup();
 
       // tests on standard workspaces customization
-      void testEditPalette_data() { prepareStandardWorkspacesTestData(); };
+      void testEditPalette_data() { prepareStandardWorkspacesTestData(); }
       void testEditPalette();
       void testResetEditedPalette_data() { prepareStandardWorkspacesTestData(); }
       void testResetEditedPalette();
@@ -79,6 +79,8 @@ void TestWorkspaces::initTestCase()
       {
       qputenv("QML_DISABLE_DISK_CACHE", "true");
       qSetMessagePattern("%{function}: %{message}");
+      // Force INI settings format to store settings in a temporary directory
+      QSettings::setDefaultFormat(QSettings::IniFormat);
       MScore::noGui = true;
       MScore::testMode = true;
       initMuseScoreResources();
@@ -90,7 +92,7 @@ void TestWorkspaces::initTestCase()
 
 void TestWorkspaces::initMuseScore()
       {
-      Ms::dataPath = tmpDataDir->path();
+      MuseScoreApplication::setCustomConfigFolder(tmpDataDir->path());
       QStringList temp;
       MuseScore::init(temp);
       WorkspacesManager::initCurrentWorkspace();
@@ -126,17 +128,13 @@ void TestWorkspaces::cleanup()
 
 static QString forceSaveWorkspace(Workspace* w)
       {
-      if (!w->readOnly()) {
-            w->write();
-            return w->path();
+      if (w->readOnly()) {
+            // Clearing our path will allow write to construct a new one
+            w->setPath("");
+            w->setReadOnly(false);
             }
-
-      const QString name = w->translatableName().isEmpty() ? w->name() : w->translatableName();
-      const QString workspacePath = name + ".workspace";
-      w->setPath(workspacePath);
-      w->setReadOnly(false);
       w->write();
-      return workspacePath;
+      return w->path();
       }
 
 void TestWorkspaces::prepareStandardWorkspaceXml(const QString& name, const QString& refXml)

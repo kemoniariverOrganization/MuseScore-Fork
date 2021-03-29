@@ -34,6 +34,12 @@ void TieSegment::draw(QPainter* painter) const
 
       QPen pen(curColor());
       qreal mag = staff() ? staff()->mag(tie()->tick()) : 1.0;
+
+      //Replace generic Qt dash patterns with improved equivalents to show true dots (keep in sync with slur.cpp)
+      QVector<qreal> dotted     = { 0.01, 1.99 }; // tighter than Qt DotLine equivalent - woud be { 0.01, 2.99 }
+      QVector<qreal> dashed     = { 3.00, 3.00 }; // Compensating for caps. Qt default DashLine is { 4.0, 2.0 }
+      QVector<qreal> wideDashed = { 5.00, 6.00 };
+
       switch (slurTie()->lineType()) {
             case 0:
                   painter->setBrush(QBrush(pen.color()));
@@ -43,20 +49,19 @@ void TieSegment::draw(QPainter* painter) const
                   break;
             case 1:
                   painter->setBrush(Qt::NoBrush);
+                  pen.setCapStyle(Qt::RoundCap); // True dots
+                  pen.setDashPattern(dotted);
                   pen.setWidthF(score()->styleP(Sid::SlurDottedWidth) * mag);
-                  pen.setStyle(Qt::DotLine);
                   break;
             case 2:
                   painter->setBrush(Qt::NoBrush);
+                  pen.setDashPattern(dashed);
                   pen.setWidthF(score()->styleP(Sid::SlurDottedWidth) * mag);
-                  pen.setStyle(Qt::DashLine);
                   break;
             case 3:
                   painter->setBrush(Qt::NoBrush);
+                  pen.setDashPattern(wideDashed);
                   pen.setWidthF(score()->styleP(Sid::SlurDottedWidth) * mag);
-                  pen.setStyle(Qt::CustomDashLine);
-                  QVector<qreal> dashes { 5.0, 5.0 };
-                  pen.setDashPattern(dashes);
                   break;
             }
       painter->setPen(pen);
@@ -328,6 +333,11 @@ void TieSegment::layoutSegment(const QPointF& p1, const QPointF& p2)
       setPos(QPointF());
       ups(Grip::START).p = p1;
       ups(Grip::END).p   = p2;
+      
+      //Adjust Y pos to staff type offset before other calculations
+      if (staffType())
+            rypos() += staffType()->yoffset().val() * spatium();
+
       computeBezier();
 
       QRectF bbox = path.boundingRect();
@@ -341,6 +351,7 @@ void TieSegment::layoutSegment(const QPointF& p1, const QPointF& p2)
             // otherwise, adjusted tie might crowd an unadjusted tie unnecessarily
             Tie* t    = toTie(slurTie());
             Note* sn  = t->startNote();
+            t->setTick(t->startNote()->tick());
             Chord* sc = sn ? sn->chord() : 0;
 
             // normally, the adjustment moves ties according to their direction (eg, up if tie is up)
@@ -534,6 +545,17 @@ void Tie::write(XmlWriter& xml) const
 //   calculateDirection
 //---------------------------------------------------------
 
+static int compareNotesPos(const Note* n1, const Note* n2)
+{
+    if (n1->line() != n2->line()) {
+        return n2->line() - n1->line();
+    } else if (n1->string() != n2->string()) {
+        return n2->string() - n1->string();
+    } else {
+        return n1->pitch() - n2->pitch();
+    }
+}
+
 void Tie::calculateDirection()
       {
       Chord* c1   = startNote()->chord();
@@ -544,7 +566,7 @@ void Tie::calculateDirection()
       if (_slurDirection == Direction::AUTO) {
             std::vector<Note*> notes = c1->notes();
             size_t n = notes.size();
-            if (m1->hasVoices(c1->staffIdx()) || m2->hasVoices(c2->staffIdx())) {
+            if (m1->hasVoices(c1->staffIdx(), c1->tick(), c1->actualTicks()) || m2->hasVoices(c2->staffIdx(), c2->tick(), c2->actualTicks())) {
                   // in polyphonic passage, ties go on the stem side
                   _up = c1->up();
                   }
@@ -563,31 +585,46 @@ void Tie::calculateDirection()
                   //
                   // chords
                   //
-                  QList<int> ties;
-                  int idx = 0;
-                  int noteIdx = -1;
+                  int tiesCount = 0;
+                  Note* tieNote = startNote();
+                  Note* tieAbove = nullptr;
+                  Note* tieBelow = nullptr;
+
                   for (size_t i = 0; i < n; ++i) {
                         if (notes[i]->tieFor()) {
-                              ties.append(notes[i]->line());
-                              if (notes[i] == startNote()) {
-                                    idx = ties.size() - 1;
-                                    noteIdx = int(i);
+                              tiesCount++;
+                              int noteDiff = compareNotesPos(notes[i], tieNote);
+
+                              if (noteDiff > 0) {
+                                    if (!tieAbove)
+                                          tieAbove = notes[i];
+                                    else if (compareNotesPos(notes[i], tieAbove) < 0)
+                                          tieAbove = notes[i];
+                                    }
+                              else if (noteDiff < 0) {
+                                    if (!tieBelow)
+                                          tieBelow = notes[i];
+                                    else if (compareNotesPos(notes[i], tieBelow) > 0)
+                                          tieBelow = notes[i];
                                     }
                               }
                         }
-                  if (idx == 0) {
-                        if (ties.size() == 1)         // if just one tie
-                              _up = noteIdx != 0;     // it is up if not the bottom note of the chord
-                        else                          // if several ties and this is the bottom one (idx == 0)
-                              _up = false;            // it is down
-                        }
-                  else if (idx == ties.size() - 1)
+                  if (!tieBelow)
+                        // bottom tie is up if it is the only tie and not the bottom note of the chord
+                        _up = tiesCount == 1 && tieNote != c1->downNote();
+                  else if (!tieAbove)
+                        // top tie always up
                         _up = true;
                   else {
-                        if (ties[idx] <= 4)
-                              _up = ((ties[idx-1] - ties[idx]) <= 1) || ((ties[idx] - ties[idx+1]) > 1);
+                        bool tabStaff = onTabStaff();
+                        int tieLine = tabStaff ? tieNote->string() : tieNote->line();
+                        int belowLine = tabStaff ? tieBelow->string() : tieBelow->line();
+                        int aboveLine = tabStaff ? tieAbove->string() : tieAbove->line();
+
+                        if (tieLine <= (tabStaff ? 2 : 4))
+                              _up = ((belowLine - tieLine) <= 1) || ((tieLine - aboveLine) > 1);
                         else
-                              _up = ((ties[idx-1] - ties[idx]) <= 1) && ((ties[idx] - ties[idx+1]) > 1);
+                              _up = ((belowLine - tieLine) <= 1) && ((tieLine - aboveLine) > 1);
                         }
                   }
             }
@@ -619,7 +656,7 @@ TieSegment* Tie::layoutFor(System* system)
                   }
             Chord* c1 = startNote()->chord();
             if (_slurDirection == Direction::AUTO) {
-                  if (c1->measure()->hasVoices(c1->staffIdx())) {
+                  if (c1->measure()->hasVoices(c1->staffIdx(), c1->tick(), c1->actualTicks())) {
                         // in polyphonic passage, ties go on the stem side
                         _up = c1->up();
                         }
@@ -682,23 +719,7 @@ TieSegment* Tie::layoutBack(System* system)
       TieSegment* segment = segmentAt(1);
       segment->setSystem(system);
 
-      qreal x;
-      Segment* seg = endNote()->chord()->segment()->prevActive();
-      if (seg) {
-            // find maximum width
-            qreal width = 0.0;
-            int n = score()->nstaves();
-            for (int i = 0; i < n; ++i) {
-                  if (!system->staff(i)->show())
-                        continue;
-                  Element* e = seg->element(i * VOICES);
-                  if (e && e->addToSkyline())
-                        width = qMax(width, e->pos().x() + e->bbox().right());
-                  }
-            x = seg->measure()->pos().x() + seg->pos().x() + width;
-            }
-      else
-            x = 0.0;
+      qreal x = system->firstNoteRestSegmentX(true);
 
       segment->layoutSegment(QPointF(x, sPos.p2.y()), sPos.p2);
       segment->setSpannerSegmentType(SpannerSegmentType::END);

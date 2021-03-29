@@ -23,10 +23,11 @@
 #include "libmscore/rendermidi.h"
 #include "libmscore/sequencer.h"
 #include "libmscore/fraction.h"
-#include "synthesizer/event.h"
-#include "driver.h"
 #include "libmscore/fifo.h"
 #include "libmscore/tempo.h"
+
+#include "audio/midi/event.h"
+#include "audio/drivers/driver.h"
 
 class QTimer;
 
@@ -55,6 +56,7 @@ enum class SeqMsgId : char {
       NO_MESSAGE,
       TEMPO_CHANGE,
       PLAY, SEEK,
+      ALL_NOTE_OFF,
       MIDI_INPUT_EVENT
       };
 

@@ -363,6 +363,7 @@ bool Score::pasteStaff(XmlReader& e, Segment* dst, int dstStaff, Fraction scale)
                            || tag == "StaffText"
                            || tag == "TempoText"
                            || tag == "FiguredBass"
+                           || tag == "Sticking"
                            || tag == "Fermata"
                            ) {
                               Element* el = Element::name2Element(tag, this);
@@ -397,8 +398,9 @@ bool Score::pasteStaff(XmlReader& e, Segment* dst, int dstStaff, Fraction scale)
                               }
                         else if (tag == "Breath") {
                               Breath* breath = new Breath(this);
-                              breath->read(e);
                               breath->setTrack(e.track());
+                              breath->setPlacement(breath->track() & 1 ? Placement::BELOW : Placement::ABOVE);
+                              breath->read(e);
                               Fraction tick = doScale ? (e.tick() - dstTick) * scale + dstTick : e.tick();
                               Measure* m = tick2measure(tick);
                               if (m->tick() == tick)
@@ -505,7 +507,7 @@ bool Score::pasteStaff(XmlReader& e, Segment* dst, int dstStaff, Fraction scale)
                   s = s->next1MM();
                   }
 
-            for (MuseScoreView* v : viewer)
+            for (MuseScoreView* v : qAsConst(viewer))
                   v->adjustCanvasPosition(el, false);
             if (!selection().isRange())
                   _selection.setState(SelState::RANGE);
@@ -532,6 +534,9 @@ void Score::readAddConnector(ConnectorInfoReader* info, bool pasteMode)
             case ElementType::TRILL:
             case ElementType::TEXTLINE:
             case ElementType::VOLTA:
+            case ElementType::PALM_MUTE:
+            case ElementType::LET_RING:
+            case ElementType::VIBRATO:
                   {
                   Spanner* sp = toSpanner(info->connector());
                   const Location& l = info->location();
@@ -562,12 +567,29 @@ void Score::pasteChordRest(ChordRest* cr, const Fraction& t, const Interval& src
       {
       Fraction tick(t);
 // qDebug("pasteChordRest %s at %d, len %d/%d", cr->name(), tick, cr->ticks().numerator(), cr->ticks().denominator() );
-      if (cr->isChord())
-            transposeChord(toChord(cr), srcTranspose, tick);
 
       Measure* measure = tick2measure(tick);
       if (!measure)
             return;
+
+      int twoNoteTremoloFactor = 1;
+      if (cr->isChord()) {
+            transposeChord(toChord(cr), srcTranspose, tick);
+            if (toChord(cr)->tremolo() && toChord(cr)->tremolo()->twoNotes())
+                  twoNoteTremoloFactor = 2;
+            else if (cr->durationTypeTicks() == (cr->actualTicks() * 2)) {
+                  // this could be the 2nd note of a two-note tremolo
+                  // check previous CR on same track, if it has a two-note tremolo, then set twoNoteTremoloFactor to 2
+                  Segment* seg = measure->undoGetSegment(SegmentType::ChordRest, tick);
+                  ChordRest* crt = seg->nextChordRest(cr->track(), true);
+                  if (crt && crt->isChord()) {
+                        Chord* chrt = toChord(crt);
+                        Tremolo* tr = chrt->tremolo();
+                        if (tr && tr->twoNotes())
+                              twoNoteTremoloFactor = 2;
+                        }
+                  }
+            }
 
       // we can paste a measure rest as such only at start of measure
       // and only if the lengths of the rest and measure match
@@ -584,7 +606,7 @@ void Score::pasteChordRest(ChordRest* cr, const Fraction& t, const Interval& src
       if (cr->isRepeatMeasure())
             partialCopy = toRepeatMeasure(cr)->actualTicks() != measure->ticks();
       else if (!isGrace && !cr->tuplet())
-            partialCopy = cr->durationTypeTicks() != cr->actualTicks();
+            partialCopy = cr->durationTypeTicks() != (cr->actualTicks() * twoNoteTremoloFactor);
 
       // if note is too long to fit in measure, split it up with a tie across the barline
       // exclude tuplets from consideration
@@ -619,6 +641,8 @@ void Score::pasteChordRest(ChordRest* cr, const Fraction& t, const Interval& src
                                     Tie* tie = new Tie(this);
                                     tie->setStartNote(nl1[i]);
                                     tie->setEndNote(nl2[i]);
+                                    tie->setTick(tie->startNote()->tick());
+                                    tie->setTick2(tie->endNote()->tick());
                                     tie->setTrack(c->track());
                                     Tie* tie2 = nl1[i]->tieFor();
                                     if (tie2) {
@@ -796,13 +820,13 @@ void Score::pasteSymbols(XmlReader& e, ChordRest* dst)
                               undoAddElement(d);
                               }
                         else if (tag == "HairPin") {
-                              Hairpin h(this);
-                              h.setTrack(destTrack);
-                              h.read(e);
-                              h.setTrack(destTrack);
-                              ChordRest* destCR1 = findCR(destTick, destTrack);
-                              ChordRest* destCR2 = findCR(destTick + h.ticks() - Fraction::eps(), destTrack);
-                              addHairpin(h.hairpinType(), destCR1, destCR2);
+                              Hairpin* h = new Hairpin(this);
+                              h->setTrack(destTrack);
+                              h->read(e);
+                              h->setTrack(destTrack);
+                              h->setTrack2(destTrack);
+                              h->setTick(destTick);
+                              undoAddElement(h);
                               }
                         else {
                               //
@@ -830,6 +854,16 @@ void Score::pasteSymbols(XmlReader& e, ChordRest* dst)
                                     el->setTrack(destTrack);
                                     el->setParent(cr);
                                     if (!el->isFermata() && cr->isRest())
+                                          delete el;
+                                    else
+                                          undoAddElement(el);
+                                    }
+                              else if (tag == "StaffText" || tag == "Sticking") {
+                                    Element* el = Element::name2Element(tag, this);
+                                    el->read(e);
+                                    el->setTrack(destTrack);
+                                    el->setParent(currSegm);
+                                    if (el->isSticking() && cr->isRest())
                                           delete el;
                                     else
                                           undoAddElement(el);

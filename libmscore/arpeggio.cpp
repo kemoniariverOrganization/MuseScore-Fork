@@ -17,11 +17,21 @@
 #include "score.h"
 #include "staff.h"
 #include "part.h"
+#include "page.h"
 #include "segment.h"
 #include "property.h"
 #include "xml.h"
 
 namespace Ms {
+
+const std::array<const char*, 6> Arpeggio::arpeggioTypeNames = {
+      QT_TRANSLATE_NOOP("Palette", "Arpeggio"),
+      QT_TRANSLATE_NOOP("Palette", "Up arpeggio"),
+      QT_TRANSLATE_NOOP("Palette", "Down arpeggio"),
+      QT_TRANSLATE_NOOP("Palette", "Bracket arpeggio"),
+      QT_TRANSLATE_NOOP("Palette", "Up arpeggio straight"),
+      QT_TRANSLATE_NOOP("Palette", "Down arpeggio straight")
+      };
 
 //---------------------------------------------------------
 //   Arpeggio
@@ -157,8 +167,8 @@ void Arpeggio::layout()
                   break;
 
             case ArpeggioType::DOWN: {
-                  symbolLine(SymId::wiggleArpeggiatoDownArrow, SymId::wiggleArpeggiatoDown);
-                  // string is rotated +90 degrees
+                  symbolLine(SymId::wiggleArpeggiatoUpArrow, SymId::wiggleArpeggiatoUp);
+                  // string is rotated +90 degrees (so that UpArrow turns into a DownArrow)
                   QRectF r(symBbox(symbols));
                   setbbox(QRectF(0.0, r.x() + y1, r.height(), r.width()));
                   }
@@ -290,37 +300,47 @@ void Arpeggio::editDrag(EditData& ed)
       }
 
 //---------------------------------------------------------
-//   dragAnchor
+//   dragAnchorLines
 //---------------------------------------------------------
 
-QLineF Arpeggio::dragAnchor() const
+QVector<QLineF> Arpeggio::dragAnchorLines() const
       {
+      QVector<QLineF> result;
+
       Chord* c = chord();
       if (c)
-            return QLineF(pagePos(), c->upNote()->pagePos());
-      return QLineF();
+            result << QLineF(canvasPos(), c->upNote()->canvasPos());
+      return QVector<QLineF>();
       }
 
 //---------------------------------------------------------
-//   gripAnchor
+//   gripAnchorLines
 //---------------------------------------------------------
 
-QPointF Arpeggio::gripAnchor(Grip n) const
+QVector<QLineF> Arpeggio::gripAnchorLines(Grip grip) const
       {
-      Chord* c = chord();
-      if (c == 0)
-            return QPointF();
-      if (n == Grip::START)
-            return c->upNote()->pagePos();
-      else if (n == Grip::END) {
-            Note* dnote = c->downNote();
+      QVector<QLineF> result;
+
+      Chord* _chord = chord();
+      if (!_chord)
+            return result;
+
+      const Page* p = toPage(findAncestor(ElementType::PAGE));
+      const QPointF pageOffset = p ? p->pos() : QPointF();
+
+      const QPointF gripCanvasPos = gripsPositions()[static_cast<int>(grip)] + pageOffset;
+
+      if (grip == Grip::START)
+            result << QLineF(_chord->upNote()->canvasPos(), gripCanvasPos);
+      else if (grip == Grip::END) {
+            Note* downNote = _chord->downNote();
             int btrack  = track() + (_span - 1) * VOICES;
-            Element* e = c->segment()->element(btrack);
+            Element* e = _chord->segment()->element(btrack);
             if (e && e->isChord())
-                  dnote = toChord(e)->downNote();
-            return dnote->pagePos();
+                  downNote = toChord(e)->downNote();
+            result << QLineF(downNote->canvasPos(), gripCanvasPos);
             }
-      return QPointF();
+      return result;
       }
 
 //---------------------------------------------------------

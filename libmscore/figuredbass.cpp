@@ -71,6 +71,7 @@ FiguredBassItem::FiguredBassItem(Score* s, int l)
       _digit      = FBIDigitNone;
       parenth[0]  = parenth[1] = parenth[2] = parenth[3] = parenth[4] = Parenthesis::NONE;
       _contLine   = ContLine::NONE;
+      textWidth   = 0;
       }
 
 FiguredBassItem::FiguredBassItem(const FiguredBassItem& item)
@@ -1174,8 +1175,21 @@ void FiguredBass::layoutLines()
                         break;
                   }
             // locate the last ChordRest of this
-            if (nextSegm)
-                  lastCR = nextSegm->prev1()->nextChordRest(track(), true);
+            if (nextSegm) {
+                  int startTrack = trackZeroVoice(track());
+                  int endTrack = startTrack + VOICES;
+                  for (const Segment* seg = nextSegm->prev1(); seg; seg = seg->prev1()) {
+                        for (int t = startTrack; t < endTrack; ++t) {
+                              Element* el = seg->element(t);
+                              if (el && el->isChordRest()) {
+                                    lastCR = toChordRest(el);
+                                    break;
+                                    }
+                              }
+                        if (lastCR)
+                              break;
+                        }
+                  }
             }
       if (!m || !nextSegm) {
             qDebug("FiguredBass layout: no segment found for tick %d", nextTick.ticks());
@@ -1293,11 +1307,9 @@ void FiguredBass::endEdit(EditData& ed)
       TextBase::endEdit(ed);
       // as the standard text editor keeps inserting spurious HTML formatting and styles
       // retrieve and work only on the plain text
-      QString txt = plainText();
-      if (txt.isEmpty()) {                       // if no text, nothing to do
-            setXmlText(txt);                       // clear the stored text: the empty f.b. element will be deleted
+      const QString txt = plainText();
+      if (txt.isEmpty()) // if no text, nothing to do
             return;
-            }
 
       // split text into lines and create an item for each line
       QStringList list = txt.split('\n', QString::SkipEmptyParts);
@@ -1305,7 +1317,7 @@ void FiguredBass::endEdit(EditData& ed)
       items.clear();
       QString normalizedText = QString();
       idx = 0;
-      for (QString str : list) {
+      for (QString str : qAsConst(list)) {
             FiguredBassItem* pItem = new FiguredBassItem(score(), idx++);
             if(!pItem->parse(str)) {            // if any item fails parsing
                   qDeleteAll(items);
@@ -1313,6 +1325,7 @@ void FiguredBass::endEdit(EditData& ed)
                   score()->startCmd();
                   triggerLayout();
                   score()->endCmd();
+                  delete pItem;
                   return;
                   }
             pItem->setTrack(track());
@@ -1635,7 +1648,7 @@ bool FiguredBass::readConfigFile(const QString& fileName)
 
       QFile fi(path);
       if (!fi.open(QIODevice::ReadOnly)) {
-            MScore::lastError = QObject::tr("Cannot open figured bass description:\n%1\n%2").arg(fi.fileName()).arg(fi.errorString());
+            MScore::lastError = QObject::tr("Cannot open figured bass description:\n%1\n%2").arg(fi.fileName(), fi.errorString());
             qDebug("FiguredBass::read failed: <%s>", qPrintable(path));
             return false;
             }
@@ -1749,7 +1762,7 @@ void FiguredBass::writeMusicXML(XmlWriter& xml, bool isOriginalFigure, int crEnd
 FiguredBass* Score::addFiguredBass()
       {
       Element* el = selection().element();
-      if (el == 0 || (el->type() != ElementType::NOTE && el->type() != ElementType::FIGURED_BASS)) {
+      if (!el || (!(el->isNote()) && !(el->isRest()) && !(el->isFiguredBass()))) {
             MScore::setError(NO_NOTE_FIGUREDBASS_SELECTED);
             return 0;
             }
@@ -1759,6 +1772,10 @@ FiguredBass* Score::addFiguredBass()
       if (el->isNote()) {
             ChordRest * cr = toNote(el)->chord();
             fb = FiguredBass::addFiguredBassToSegment(cr->segment(), cr->staffIdx() * VOICES, Fraction(0,1), &bNew);
+            }
+      else if (el->isRest()) {
+            ChordRest* cr = toRest(el);
+            fb = FiguredBass::addFiguredBassToSegment(cr->segment(), cr->staffIdx() * VOICES, Fraction(0, 1), &bNew);
             }
       else if (el->isFiguredBass()) {
             fb = toFiguredBass(el);

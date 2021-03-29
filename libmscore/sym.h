@@ -14,24 +14,43 @@
 #define __SYM_H__
 
 #include "config.h"
+#include "style.h"
 
 #include "ft2build.h"
 #include FT_FREETYPE_H
 
-namespace Ms {
+// Needs to be duplicated here and in style.h since moc doesn't handle macros from #include'd files
+#ifdef SCRIPT_INTERFACE
+#define BEGIN_QT_REGISTERED_ENUM(Name) \
+class MSQE_##Name { \
+      Q_GADGET \
+   public:
+#define END_QT_REGISTERED_ENUM(Name) \
+      Q_ENUM(Name); \
+      }; \
+using Name = MSQE_##Name::Name;
+#else
+#define BEGIN_QT_REGISTERED_ENUM(Name)
+#define END_QT_REGISTERED_ENUM(Name)
+#endif
 
-enum class Sid;
+namespace Ms {
 
 //---------------------------------------------------------
 //   SymId
 //    must be in sync with symNames
 //---------------------------------------------------------
 
+BEGIN_QT_REGISTERED_ENUM(SymId)
 enum class SymId {
-
-      // SMuFL standard symbol ID's
-
+      ///.\{
       noSym,
+
+      // DO NOT edit the SMuFL standard symbol IDs (see below) manually!
+      // They are generated from fonttools/smufl2sym.{bat,sh} and then
+      // copied into this file!
+
+      // SMuFL standard symbol IDs {{{
       fourStringTabClef,
       sixStringTabClef,
       accSagittal11LargeDiesisDown,
@@ -793,15 +812,26 @@ enum class SymId {
       controlEndPhrase,
       controlEndSlur,
       controlEndTie,
+      csymAccidentalDoubleFlat,
+      csymAccidentalDoubleSharp,
+      csymAccidentalFlat,
+      csymAccidentalNatural,
+      csymAccidentalSharp,
+      csymAccidentalTripleFlat,
+      csymAccidentalTripleSharp,
+      csymAlteredBassSlash,
       csymAugmented,
       csymBracketLeftTall,
       csymBracketRightTall,
+      csymDiagonalArrangementSlash,
       csymDiminished,
       csymHalfDiminished,
       csymMajorSeventh,
       csymMinor,
       csymParensLeftTall,
+      csymParensLeftVeryTall,
       csymParensRightTall,
+      csymParensRightVeryTall,
       curlewSign,
       daCapo,
       dalSegno,
@@ -823,10 +853,12 @@ enum class SymId {
       daseianSuperiores2,
       daseianSuperiores3,
       daseianSuperiores4,
+      doubleLateralRollStevens,
       doubleTongueAbove,
       doubleTongueBelow,
       dynamicCombinedSeparatorColon,
       dynamicCombinedSeparatorHyphen,
+      dynamicCombinedSeparatorSlash,
       dynamicCombinedSeparatorSpace,
       dynamicCrescendoHairpin,
       dynamicDiminuendoHairpin,
@@ -989,19 +1021,44 @@ enum class SymId {
       figbassPlus,
       figbassSharp,
       fingering0,
+      fingering0Italic,
       fingering1,
+      fingering1Italic,
       fingering2,
+      fingering2Italic,
       fingering3,
+      fingering3Italic,
       fingering4,
+      fingering4Italic,
       fingering5,
+      fingering5Italic,
+      fingering6,
+      fingering6Italic,
+      fingering7,
+      fingering7Italic,
+      fingering8,
+      fingering8Italic,
+      fingering9,
+      fingering9Italic,
       fingeringALower,
       fingeringCLower,
       fingeringELower,
       fingeringILower,
+      fingeringLeftBracket,
+      fingeringLeftBracketItalic,
+      fingeringLeftParenthesis,
+      fingeringLeftParenthesisItalic,
       fingeringMLower,
       fingeringMultipleNotes,
       fingeringOLower,
       fingeringPLower,
+      fingeringRightBracket,
+      fingeringRightBracketItalic,
+      fingeringRightParenthesis,
+      fingeringRightParenthesisItalic,
+      fingeringSeparatorMiddleDot,
+      fingeringSeparatorMiddleDotWhite,
+      fingeringSeparatorSlash,
       fingeringSubstitutionAbove,
       fingeringSubstitutionBelow,
       fingeringSubstitutionDash,
@@ -1188,6 +1245,89 @@ enum class SymId {
       harpTuningKeyGlissando,
       harpTuningKeyHandle,
       harpTuningKeyShank,
+      indianDrumClef,
+      kahnBackChug,
+      kahnBackFlap,
+      kahnBackRiff,
+      kahnBackRip,
+      kahnBallChange,
+      kahnBallDig,
+      kahnBrushBackward,
+      kahnBrushForward,
+      kahnChug,
+      kahnClap,
+      kahnDoubleSnap,
+      kahnDoubleWing,
+      kahnDrawStep,
+      kahnDrawTap,
+      kahnFlam,
+      kahnFlap,
+      kahnFlapStep,
+      kahnFlat,
+      kahnFleaHop,
+      kahnFleaTap,
+      kahnGraceTap,
+      kahnGraceTapChange,
+      kahnGraceTapHop,
+      kahnGraceTapStamp,
+      kahnHeel,
+      kahnHeelChange,
+      kahnHeelClick,
+      kahnHeelDrop,
+      kahnHeelStep,
+      kahnHeelTap,
+      kahnHop,
+      kahnJumpApart,
+      kahnJumpTogether,
+      kahnKneeInward,
+      kahnKneeOutward,
+      kahnLeap,
+      kahnLeapFlatFoot,
+      kahnLeapHeelClick,
+      kahnLeftCatch,
+      kahnLeftCross,
+      kahnLeftFoot,
+      kahnLeftToeStrike,
+      kahnLeftTurn,
+      kahnOverTheTop,
+      kahnOverTheTopTap,
+      kahnPull,
+      kahnPush,
+      kahnRiff,
+      kahnRiffle,
+      kahnRightCatch,
+      kahnRightCross,
+      kahnRightFoot,
+      kahnRightToeStrike,
+      kahnRightTurn,
+      kahnRip,
+      kahnRipple,
+      kahnScrape,
+      kahnScuff,
+      kahnScuffle,
+      kahnShuffle,
+      kahnSlam,
+      kahnSlap,
+      kahnSlideStep,
+      kahnSlideTap,
+      kahnSnap,
+      kahnStamp,
+      kahnStampStamp,
+      kahnStep,
+      kahnStepStamp,
+      kahnStomp,
+      kahnStompBrush,
+      kahnTap,
+      kahnToe,
+      kahnToeClick,
+      kahnToeDrop,
+      kahnToeStep,
+      kahnToeTap,
+      kahnTrench,
+      kahnWing,
+      kahnWingChange,
+      kahnZank,
+      kahnZink,
       keyboardBebung2DotsAbove,
       keyboardBebung2DotsBelow,
       keyboardBebung3DotsAbove,
@@ -1211,6 +1351,8 @@ enum class SymId {
       keyboardPedalHookStart,
       keyboardPedalHyphen,
       keyboardPedalP,
+      keyboardPedalParensLeft,
+      keyboardPedalParensRight,
       keyboardPedalPed,
       keyboardPedalS,
       keyboardPedalSost,
@@ -1355,6 +1497,7 @@ enum class SymId {
       lyricsElisionWide,
       lyricsHyphenBaseline,
       lyricsHyphenBaselineNonBreaking,
+      lyricsTextRepeat,
       medRenFlatHardB,
       medRenFlatSoftB,
       medRenFlatWithDot,
@@ -1871,6 +2014,71 @@ enum class SymId {
       octaveSuperscriptB,
       octaveSuperscriptM,
       octaveSuperscriptV,
+      oneHandedRollStevens,
+      organGerman2Fusae,
+      organGerman2Minimae,
+      organGerman2OctaveUp,
+      organGerman2Semifusae,
+      organGerman2Semiminimae,
+      organGerman3Fusae,
+      organGerman3Minimae,
+      organGerman3Semifusae,
+      organGerman3Semiminimae,
+      organGerman4Fusae,
+      organGerman4Minimae,
+      organGerman4Semifusae,
+      organGerman4Semiminimae,
+      organGerman5Fusae,
+      organGerman5Minimae,
+      organGerman5Semifusae,
+      organGerman5Semiminimae,
+      organGerman6Fusae,
+      organGerman6Minimae,
+      organGerman6Semifusae,
+      organGerman6Semiminimae,
+      organGermanALower,
+      organGermanAUpper,
+      organGermanAugmentationDot,
+      organGermanBLower,
+      organGermanBUpper,
+      organGermanBuxheimerBrevis2,
+      organGermanBuxheimerBrevis3,
+      organGermanBuxheimerMinimaRest,
+      organGermanBuxheimerSemibrevis,
+      organGermanBuxheimerSemibrevisRest,
+      organGermanCLower,
+      organGermanCUpper,
+      organGermanCisLower,
+      organGermanCisUpper,
+      organGermanDLower,
+      organGermanDUpper,
+      organGermanDisLower,
+      organGermanDisUpper,
+      organGermanELower,
+      organGermanEUpper,
+      organGermanFLower,
+      organGermanFUpper,
+      organGermanFisLower,
+      organGermanFisUpper,
+      organGermanFusa,
+      organGermanFusaRest,
+      organGermanGLower,
+      organGermanGUpper,
+      organGermanGisLower,
+      organGermanGisUpper,
+      organGermanHLower,
+      organGermanHUpper,
+      organGermanMinima,
+      organGermanMinimaRest,
+      organGermanOctaveDown,
+      organGermanOctaveUp,
+      organGermanSemibrevis,
+      organGermanSemibrevisRest,
+      organGermanSemifusa,
+      organGermanSemifusaRest,
+      organGermanSemiminima,
+      organGermanSemiminimaRest,
+      organGermanTie,
       ornamentBottomLeftConcaveStroke,
       ornamentBottomLeftConcaveStrokeLarge,
       ornamentBottomLeftConvexStroke,
@@ -1899,7 +2107,6 @@ enum class SymId {
       ornamentLowRightConvexStroke,
       ornamentMiddleVerticalStroke,
       ornamentMordent,
-      ornamentMordentInverted,
       ornamentObliqueLineAfterNote,
       ornamentObliqueLineBeforeNote,
       ornamentObliqueLineHorizAfterNote,
@@ -1941,6 +2148,7 @@ enum class SymId {
       ornamentShakeMuffat1,
       ornamentShortObliqueLineAfterNote,
       ornamentShortObliqueLineBeforeNote,
+      ornamentShortTrill,
       ornamentTopLeftConcaveStroke,
       ornamentTopLeftConvexStroke,
       ornamentTopRightConcaveStroke,
@@ -1973,6 +2181,8 @@ enum class SymId {
       pictBeaterBow,
       pictBeaterBox,
       pictBeaterBrassMalletsDown,
+      pictBeaterBrassMalletsLeft,
+      pictBeaterBrassMalletsRight,
       pictBeaterBrassMalletsUp,
       pictBeaterCombiningDashedCircle,
       pictBeaterCombiningParentheses,
@@ -2012,6 +2222,7 @@ enum class SymId {
       pictBeaterJazzSticksUp,
       pictBeaterKnittingNeedle,
       pictBeaterMallet,
+      pictBeaterMalletDown,
       pictBeaterMediumBassDrumDown,
       pictBeaterMediumBassDrumUp,
       pictBeaterMediumTimpaniDown,
@@ -2060,6 +2271,7 @@ enum class SymId {
       pictBeaterSuperballRight,
       pictBeaterSuperballUp,
       pictBeaterTriangleDown,
+      pictBeaterTrianglePlain,
       pictBeaterTriangleUp,
       pictBeaterWireBrushesDown,
       pictBeaterWireBrushesUp,
@@ -2254,6 +2466,9 @@ enum class SymId {
       repeat1Bar,
       repeat2Bars,
       repeat4Bars,
+      repeatBarLowerDot,
+      repeatBarSlash,
+      repeatBarUpperDot,
       repeatDot,
       repeatDots,
       repeatLeft,
@@ -2510,6 +2725,7 @@ enum class SymId {
       ventiduesimaBassa,
       ventiduesimaBassaMb,
       vocalFingerClickStockhausen,
+      vocalHalbGesungen,
       vocalMouthClosed,
       vocalMouthOpen,
       vocalMouthPursed,
@@ -2626,6 +2842,7 @@ enum class SymId {
       windTrillKey,
       windVeryTightEmbouchure,
       windWeakAirPressure,
+      // SMuFL standard symbol IDs }}}
 
 //    EXTENSIONS
 //    SMuFL stylistic alternates which we need to access directly
@@ -2641,7 +2858,7 @@ enum class SymId {
       braceLarge,
       braceLarger,
 
-//    MuseScore local symbols, precomposed symbols to mimic some emmentaler glyphs
+//    MuseScore-local symbols, precomposed symbols to mimic some Emmentaler glyphs
 
       ornamentPrallMordent,
       ornamentUpPrall,
@@ -2654,6 +2871,12 @@ enum class SymId {
 
 //    additional symbols
 
+      accidentalDoubleFlatParens,
+      accidentalFlatParens,
+      accidentalNaturalParens,
+      accidentalSharpParens,
+      accidentalDoubleSharpParens,
+
       noteLongaUp,
       noteLongaDown,
       noteLongaSquareUp,
@@ -2663,10 +2886,13 @@ enum class SymId {
 //    END OF TABLE
 
       lastSym
+      ///\}
       };
+END_QT_REGISTERED_ENUM(SymId)
 
 //---------------------------------------------------------
 //   Sym
+///   \cond PLUGIN_API \private \endcond
 //---------------------------------------------------------
 
 class Sym {
@@ -2678,6 +2904,8 @@ class Sym {
 
       QPointF _stemDownNW;
       QPointF _stemUpSE;
+      QPointF _stemDownSW;
+      QPointF _stemUpNW;
       QPointF _cutOutNE;
       QPointF _cutOutNW;
       QPointF _cutOutSE;
@@ -2687,7 +2915,7 @@ class Sym {
    public:
       Sym() { }
 
-      bool isValid() const                       { return _code != -1; }
+      bool isValid() const                       { return _code != -1 && _bbox.isValid(); }
 
       void setSymList(const std::vector<SymId>& sl)    { _ids = sl;        }
       const std::vector<SymId>& symList() const        { return _ids;      }
@@ -2708,6 +2936,10 @@ class Sym {
       void setStemDownNW(const QPointF& r)       { _stemDownNW = r;      }
       QPointF stemUpSE() const                   { return _stemUpSE;   }
       void setStemUpSE(const QPointF& r)         { _stemUpSE = r;      }
+      QPointF stemDownSW() const                 { return _stemDownSW; }
+      void setStemDownSW(const QPointF& r)       { _stemDownSW = r;    }
+      QPointF stemUpNW() const                   { return _stemUpNW;   }
+      void setStemUpNW(const QPointF& r)         { _stemUpNW = r;      }
       QPointF cutOutNE() const                   { return _cutOutNE; }
       void setCutOutNE(const QPointF& r)         { _cutOutNE = r;    }
       QPointF cutOutNW() const                   { return _cutOutNW; }
@@ -2735,6 +2967,7 @@ class Sym {
 
 //---------------------------------------------------------
 //   GlyphKey
+///   \cond PLUGIN_API \private \endcond
 //---------------------------------------------------------
 
 struct GlyphKey {
@@ -2751,6 +2984,11 @@ struct GlyphKey {
       bool operator==(const GlyphKey&) const;
       };
 
+//---------------------------------------------------------
+//   GlyphPixmap
+///   \cond PLUGIN_API \private \endcond
+//---------------------------------------------------------
+
 struct GlyphPixmap {
       QPixmap pm;
       QPointF offset;
@@ -2763,6 +3001,7 @@ inline uint qHash(const GlyphKey& k)
 
 //---------------------------------------------------------
 //   ScoreFont
+///   \cond PLUGIN_API \private \endcond
 //---------------------------------------------------------
 
 class ScoreFont {
@@ -2829,6 +3068,8 @@ class ScoreFont {
       const QRectF bbox(const std::vector<SymId>& s, qreal mag) const;
       QPointF stemDownNW(SymId id, qreal mag) const;
       QPointF stemUpSE(SymId id, qreal mag) const;
+      QPointF stemDownSW(SymId id, qreal mag) const;
+      QPointF stemUpNW(SymId id, qreal mag) const;
       QPointF cutOutNE(SymId id, qreal mag) const;
       QPointF cutOutNW(SymId id, qreal mag) const;
       QPointF cutOutSE(SymId id, qreal mag) const;
@@ -2837,7 +3078,7 @@ class ScoreFont {
       bool isValid(SymId id) const                    { return sym(id).isValid(); }
       bool useFallbackFont(SymId id) const;
 
-      const Sym& sym(SymId id) const { return _symbols[int(id)]; }
+      Sym sym(SymId id) const;
 
       friend void initScoreFonts();
       };
@@ -2848,4 +3089,3 @@ extern void initScoreFonts();
 
 Q_DECLARE_METATYPE(Ms::SymId);
 #endif
-

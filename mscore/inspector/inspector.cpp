@@ -238,7 +238,10 @@ void Inspector::update(Score* s)
                               ie = new InspectorAccidental(this);
                               break;
                         case ElementType::REST:
-                              ie = new InspectorRest(this);
+                              if (toRest(element())->measure()->isMMRest())
+                                    ie = new InspectorMMRest(this);
+                              else
+                                    ie = new InspectorRest(this);
                               break;
                         case ElementType::CLEF:
                               ie = new InspectorClef(this);
@@ -317,14 +320,19 @@ void Inspector::update(Score* s)
                         case ElementType::LAYOUT_BREAK:
                               if (toLayoutBreak(element())->layoutBreakType() == LayoutBreak::Type::SECTION)
                                     ie = new InspectorSectionBreak(this);
+#if 0 // currently empty and such not needed
                               else
                                     ie = new InspectorBreak(this);
+#endif
                               break;
                         case ElementType::BEND:
                               ie = new InspectorBend(this);
                               break;
                         case ElementType::TREMOLO:
-                              ie = new InspectorTremolo(this);
+                              if (toTremolo(element())->customStyleApplicable())
+                                    ie = new InspectorTremolo(this);
+                              else
+                                    ie = new InspectorElement(this);
                               break;
                         case ElementType::TREMOLOBAR:
                               ie = new InspectorTremoloBar(this);
@@ -341,10 +349,13 @@ void Inspector::update(Score* s)
                         case ElementType::STAFF_TEXT:
                         case ElementType::SYSTEM_TEXT:
                         case ElementType::REHEARSAL_MARK:
-                        case ElementType::INSTRUMENT_CHANGE:
                               ie = new InspectorStaffText(this);
                               break;
+                        case ElementType::INSTRUMENT_CHANGE:
+                              ie = new InspectorInstrumentChange(this);
+                              break;
                         case ElementType::MEASURE_NUMBER:
+                        case ElementType::MMREST_RANGE:
                               ie = new InspectorMeasureNumber(this);
                               break;
                         case ElementType::STAFFTYPE_CHANGE:
@@ -375,10 +386,16 @@ void Inspector::update(Score* s)
                               ie = new InspectorNoteDot(this);
                               break;
                         default:
-                              if (element()->isText())
-                                    ie = new InspectorText(this);
-                              else
+                              if (element()->isText()) {
+                                    // don't allow footers/headers to be edited via the inspector
+                                    if (toText(element())->tid() != Tid::FOOTER && toText(element())->tid() != Tid::HEADER)
+                                          ie = new InspectorText(this);
+                                    else
+                                          ie = new InspectorEmpty(this);
+                                    }
+                              else {
                                     ie = new InspectorElement(this);
+                                    }
                               break;
                         }
                   }
@@ -452,9 +469,9 @@ InspectorBreak::InspectorBreak(QWidget* parent)
       {
       b.setupUi(addWidget());
 
-      iList = {         // currently empty
-            };
-
+      // currently empty
+      iList = {};
+      pList = { { b.title, b.panel } };
       mapSignals();
       }
 
@@ -468,10 +485,12 @@ InspectorSectionBreak::InspectorSectionBreak(QWidget* parent)
       scb.setupUi(addWidget());
 
       iList = {
-            { Pid::PAUSE,                   0, scb.pause,               scb.resetPause               },
-            { Pid::START_WITH_LONG_NAMES,   0, scb.startWithLongNames,  scb.resetStartWithLongNames  },
-            { Pid::START_WITH_MEASURE_ONE,  0, scb.startWithMeasureOne, scb.resetStartWithMeasureOne }
+            { Pid::PAUSE,                    0, scb.pause,                  scb.resetPause                  },
+            { Pid::START_WITH_LONG_NAMES,    0, scb.startWithLongNames,     scb.resetStartWithLongNames     },
+            { Pid::START_WITH_MEASURE_ONE,   0, scb.startWithMeasureOne,    scb.resetStartWithMeasureOne    },
+            { Pid::FIRST_SYSTEM_INDENTATION, 0, scb.firstSystemIndentation, scb.resetFirstSystemIndentation }
             };
+      pList = { { scb.title, scb.panel } };
       mapSignals();
       }
 
@@ -494,23 +513,26 @@ InspectorStaffTypeChange::InspectorStaffTypeChange(QWidget* parent)
             { Pid::STAFF_SHOW_BARLINES,    0, sl.showBarlines,    sl.resetShowBarlines    },
             { Pid::STAFF_SHOW_LEDGERLINES, 0, sl.showLedgerlines, sl.resetShowLedgerlines },
             { Pid::STAFF_STEMLESS,         0, sl.stemless,        sl.resetStemless        },
-            { Pid::STAFF_NOTEHEAD_SCHEME,  0, sl.noteheadScheme,  sl.resetNoteheadScheme  },
+            { Pid::HEAD_SCHEME,            0, sl.noteheadScheme,  sl.resetNoteheadScheme  },
             { Pid::STAFF_GEN_CLEF,         0, sl.genClefs,        sl.resetGenClefs        },
             { Pid::STAFF_GEN_TIMESIG,      0, sl.genTimesig,      sl.resetGenTimesig      },
             { Pid::STAFF_GEN_KEYSIG,       0, sl.genKeysig,       sl.resetGenKeysig       },
+            { Pid::STAFF_INVISIBLE,        0, sl.invisible,       sl.resetInvisible       },
+            { Pid::STAFF_COLOR,            0, sl.color,           sl.resetColor           },
             };
+      pList = { { sl.title, sl.panel } };
 
       sl.noteheadScheme->clear();
-      for (auto i : { NoteHeadScheme::HEAD_NORMAL,
-         NoteHeadScheme::HEAD_PITCHNAME,
-         NoteHeadScheme::HEAD_PITCHNAME_GERMAN,
-         NoteHeadScheme::HEAD_SOLFEGE,
-         NoteHeadScheme::HEAD_SOLFEGE_FIXED,
-         NoteHeadScheme::HEAD_SHAPE_NOTE_4,
-         NoteHeadScheme::HEAD_SHAPE_NOTE_7_AIKIN,
-         NoteHeadScheme::HEAD_SHAPE_NOTE_7_FUNK,
-         NoteHeadScheme::HEAD_SHAPE_NOTE_7_WALKER} ) {
-            sl.noteheadScheme->addItem(StaffType::scheme2userName(i), int(i));
+      for (auto i : { NoteHead::Scheme::HEAD_NORMAL,
+         NoteHead::Scheme::HEAD_PITCHNAME,
+         NoteHead::Scheme::HEAD_PITCHNAME_GERMAN,
+         NoteHead::Scheme::HEAD_SOLFEGE,
+         NoteHead::Scheme::HEAD_SOLFEGE_FIXED,
+         NoteHead::Scheme::HEAD_SHAPE_NOTE_4,
+         NoteHead::Scheme::HEAD_SHAPE_NOTE_7_AIKIN,
+         NoteHead::Scheme::HEAD_SHAPE_NOTE_7_FUNK,
+         NoteHead::Scheme::HEAD_SHAPE_NOTE_7_WALKER} ) {
+            sl.noteheadScheme->addItem(NoteHead::scheme2userName(i), int(i));
             }
       mapSignals();
       }
@@ -524,8 +546,8 @@ void InspectorStaffTypeChange::setElement()
       InspectorBase::setElement();
       bool hasTabStaff = false;
       bool hasNonTabStaff = false;
-      for (Element* el : *(inspector->el())) {
-            StaffTypeChange* stc = toStaffTypeChange(el);
+      for (Element* ee : *(inspector->el())) {
+            StaffTypeChange* stc = toStaffTypeChange(ee);
             // tab staff shouldn't have key signature
             if (stc->staffType()->group() == StaffGroup::TAB) {
                   hasTabStaff = true;
@@ -556,8 +578,10 @@ InspectorVBox::InspectorVBox(QWidget* parent)
             { Pid::RIGHT_MARGIN,  0, vb.rightMargin,  vb.resetRightMargin  },
             { Pid::TOP_MARGIN,    0, vb.topMargin,    vb.resetTopMargin    },
             { Pid::BOTTOM_MARGIN, 0, vb.bottomMargin, vb.resetBottomMargin },
-            { Pid::BOX_HEIGHT,    0, vb.height,       0                    }
+            { Pid::BOX_HEIGHT,    0, vb.height,       0                    },
+            { Pid::BOX_AUTOSIZE,  0, vb.enableAutoSize, vb.resetAutoSize   }
             };
+      pList = { { vb.title, vb.panel } };
       mapSignals();
       }
 
@@ -578,6 +602,7 @@ InspectorTBox::InspectorTBox(QWidget* parent)
             { Pid::TOP_MARGIN,    0, tb.topMargin,    tb.resetTopMargin    },
             { Pid::BOTTOM_MARGIN, 0, tb.bottomMargin, tb.resetBottomMargin },
             };
+      pList = { { tb.title, tb.panel } };
       mapSignals();
       }
 
@@ -596,7 +621,7 @@ InspectorHBox::InspectorHBox(QWidget* parent)
             { Pid::BOX_WIDTH,             0, hb.width,    0                },
             { Pid::CREATE_SYSTEM_HEADER,  0, hb.createSystemHeader, hb.resetCreateSystemHeader }
             };
-
+      pList = { { hb.title, hb.panel } };
       mapSignals();
       }
 
@@ -654,9 +679,8 @@ void InspectorArticulation::propertiesClicked()
 void InspectorArticulation::setElement()
       {
       InspectorElementBase::setElement();
-      if (!ar.playArticulation->isChecked()) {
+      if (!ar.playArticulation->isChecked())
             ar.gridWidget->setEnabled(false);
-            }
       }
 
 //---------------------------------------------------------
@@ -862,6 +886,23 @@ void InspectorRest::tupletClicked()
       }
 
 //---------------------------------------------------------
+//   InspectorMMRest
+//---------------------------------------------------------
+
+InspectorMMRest::InspectorMMRest(QWidget* parent)
+   : InspectorElementBase(parent)
+      {
+      m.setupUi(addWidget());
+
+      const std::vector<InspectorItem> iiList = {
+            { Pid::MMREST_NUMBER_POS, 0, m.yPos, m.resetYPos }
+            };
+
+      const std::vector<InspectorPanel> ppList = { { m.title, m.panel } };
+      mapSignals(iiList, ppList);
+      }
+
+//---------------------------------------------------------
 //   InspectorTimeSig
 //---------------------------------------------------------
 
@@ -982,7 +1023,7 @@ InspectorTuplet::InspectorTuplet(QWidget* parent)
             { Pid::LINE_WIDTH,     0, t.lineWidth,       t.resetLineWidth         },
             { Pid::SIZE_SPATIUM_DEPENDENT,      0,    t.spatiumDependent,     t.resetSpatiumDependent },
             };
-      const std::vector<InspectorPanel> ppList = { {t.title, t.panel} };
+      const std::vector<InspectorPanel> ppList = { { t.title, t.panel } };
       mapSignals(iiList, ppList);
       }
 
@@ -1003,6 +1044,7 @@ InspectorAccidental::InspectorAccidental(QWidget* parent)
       a.bracket->addItem(tr("None", "no accidental bracket type"), int(AccidentalBracket::NONE));
       a.bracket->addItem(tr("Parenthesis"), int(AccidentalBracket::PARENTHESIS));
       a.bracket->addItem(tr("Bracket"), int(AccidentalBracket::BRACKET));
+      a.bracket->addItem(tr("Brace"), int(AccidentalBracket::BRACE));
 
       const std::vector<InspectorPanel> ppList = { { a.title, a.panel } };
       mapSignals(iiList, ppList);
@@ -1018,12 +1060,31 @@ InspectorTremolo::InspectorTremolo(QWidget* parent)
       g.setupUi(addWidget());
 
       const std::vector<InspectorItem> iiList = {
-            { Pid::TREMOLO_PLACEMENT, 0, g.tremoloPlacement, g.resetTremoloPlacement },
+            { Pid::TREMOLO_STYLE, 0, g.style, g.resetStyle }
             };
       const std::vector<InspectorPanel> ppList = { { g.title, g.panel } };
 
       mapSignals(iiList, ppList);
       }
+
+#if 0 // not needed currently
+//---------------------------------------------------------
+//   setElement
+//---------------------------------------------------------
+
+void InspectorTremolo::setElement()
+      {
+      InspectorElementBase::setElement();
+      for (Element* ee : *(inspector->el())) {
+            if (!(toTremolo(ee)->customStyleApplicable())) {
+                  g.labelStyle->setVisible(false);
+                  g.style->setVisible(false);
+                  g.resetStyle->setVisible(false);
+                  break;
+                  }
+            }
+      }
+#endif
 
 //---------------------------------------------------------
 //   InspectorClef
@@ -1044,29 +1105,6 @@ InspectorClef::InspectorClef(QWidget* parent)
             { c.title, c.panel }
             };
       mapSignals(iiList, ppList);
-      }
-
-//---------------------------------------------------------
-//   setElement
-//---------------------------------------------------------
-
-void InspectorClef::setElement()
-      {
-      otherClef = toClef(inspector->element())->otherClef();
-      InspectorElementBase::setElement();
-      }
-
-//---------------------------------------------------------
-//   valueChanged
-//---------------------------------------------------------
-
-void InspectorClef::valueChanged(int idx)
-      {
-      // copy into 'other clef' the ShowCouretsy ser of this clef
-      Pid pid = iList[idx].t;
-      if (pid == Pid::SHOW_COURTESY && otherClef)
-            otherClef->setShowCourtesy(c.showCourtesy->isChecked());
-      InspectorBase::valueChanged(idx);
       }
 
 //---------------------------------------------------------
@@ -1212,7 +1250,8 @@ void InspectorStaffText::propertiesClicked()
 void InspectorStaffText::setElement()
       {
       InspectorTextBase::setElement();
-      s.properties->setVisible(inspector->element()->isStaffText());
+      Element* el = inspector->element();
+      s.properties->setVisible(el->isStaffText() || el->isSystemText());
       }
 
 //---------------------------------------------------------
@@ -1283,11 +1322,13 @@ InspectorCaesura::InspectorCaesura(QWidget* parent)
       if (sameTypes)
             c.title->setText(b->isCaesura() ? tr("Caesura") : tr("Breath"));
 
-      const std::vector<InspectorItem> il = {
-            { Pid::PAUSE,  0, c.pause,         c.resetPause         }
+      const std::vector<InspectorItem> iiList = {
+            { Pid::PAUSE    ,  0, c.pause,         c.resetPause         },
+            { Pid::PLACEMENT,  0, c.placement,     c.resetPlacement     }
             };
       const std::vector<InspectorPanel> ppList = { {c.title, c.panel} };
-      mapSignals(il, ppList);
+      populatePlacement(c.placement);
+      mapSignals(iiList, ppList);
       }
 
 //---------------------------------------------------------
@@ -1299,11 +1340,11 @@ InspectorBracket::InspectorBracket(QWidget* parent)
       {
       b.setupUi(addWidget());
 
-      const std::vector<InspectorItem> il = {
+      const std::vector<InspectorItem> iiList = {
             { Pid::BRACKET_COLUMN, 0, b.column, b.resetColumn }
             };
       const std::vector<InspectorPanel> ppList = { { b.title, b.panel } };
-      mapSignals(il, ppList);
+      mapSignals(iiList, ppList);
       }
 
 //---------------------------------------------------------
@@ -1315,12 +1356,11 @@ InspectorIname::InspectorIname(QWidget* parent)
       {
       i.setupUi(addWidget());
 
-      const std::vector<InspectorItem> il = {
+      const std::vector<InspectorItem> iiList = {
             { Pid::INAME_LAYOUT_POSITION, 0, i.layoutPosition, i.resetLayoutPosition }
             };
       const std::vector<InspectorPanel> ppList = { { i.title, i.panel } };
-      mapSignals(il, ppList);
+      mapSignals(iiList, ppList);
       }
 
 }
-

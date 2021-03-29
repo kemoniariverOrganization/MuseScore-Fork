@@ -55,6 +55,8 @@ class ScoreElement : public QObject {
 
       Ownership _ownership;
 
+      qreal spatium() const;
+
    protected:
       /// \cond MS_INTERNAL
       Ms::ScoreElement* const e;
@@ -105,6 +107,24 @@ Wrapper* wrap(T* t, Ownership own = Ownership::SCORE)
 extern ScoreElement* wrap(Ms::ScoreElement* se, Ownership own = Ownership::SCORE);
 
 //---------------------------------------------------------
+//   customWrap
+///   \cond PLUGIN_API \private \endcond
+///   \internal
+///   Can be used to construct wrappers which do not
+///   support standard ownership logic or require
+///   additional arguments for initialization.
+//---------------------------------------------------------
+
+template <class Wrapper, class T, typename... Args>
+Wrapper* customWrap(T* t, Args... args)
+      {
+      Wrapper* w = t ? new Wrapper(t, std::forward<Args>(args)...) : nullptr;
+      // All wrapper objects should belong to JavaScript code.
+      QQmlEngine::setObjectOwnership(w, QQmlEngine::JavaScriptOwnership);
+      return w;
+      }
+
+//---------------------------------------------------------
 ///   QML access to containers.
 ///   A wrapper which provides read-only access for various
 ///   items containers.
@@ -115,7 +135,7 @@ class QmlListAccess : public QQmlListProperty<T> {
 public:
       /// \cond MS_INTERNAL
       QmlListAccess(QObject* obj, Container& container)
-            : QQmlListProperty<T>(obj, const_cast<void*>(static_cast<const void*>(&container)), &count, &at) {};
+            : QQmlListProperty<T>(obj, const_cast<void*>(static_cast<const void*>(&container)), &count, &at) {}
 
       static int count(QQmlListProperty<T>* l)     { return int(static_cast<Container*>(l->data)->size()); }
       static T* at(QQmlListProperty<T>* l, int i)

@@ -36,6 +36,7 @@ FocusableItem {
     width: parent.width
 
     Accessible.role: Accessible.StaticText
+    Accessible.description: textLabel.text
     Accessible.name: textLabel.text
 
     Text {

@@ -23,7 +23,7 @@
 #include "libmscore/chord.h"
 #include "libmscore/note.h"
 #include "libmscore/keysig.h"
-#include "mscore/exportmidi.h"
+#include "audio/exports/exportmidi.h"
 #include <QIODevice>
 
 #include "libmscore/mcursor.h"
@@ -136,12 +136,17 @@ void TestMidi::events_data()
 //      QTest::newRow("testPedal") <<  "testPedal";
       // multi note tremolo
       QTest::newRow("testMultiNoteTremolo") << "testMultiNoteTremolo";
+      QTest::newRow("testMultiNoteTremoloTuplet") << "testMultiNoteTremoloTuplet";
       // Test Pauses
       QTest::newRow("testPauses") <<  "testPauses";
       QTest::newRow("testPausesRepeats") <<  "testPausesRepeats";
       QTest::newRow("testPausesTempoTimesigChange") <<  "testPausesTempoTimesigChange";
       QTest::newRow("testGuitarTrem") <<  "testGuitarTrem";
       QTest::newRow("testPlayArticulation") << "testPlayArticulation";
+      QTest::newRow("testTremoloDynamics") << "testTremoloDynamics";
+      QTest::newRow("testRepeatsDynamics") << "testRepeatsDynamics";
+      QTest::newRow("testArticulationDynamics") << "testArticulationDynamics";
+      QTest::newRow("testChannelsDynamics") << "testChannelsDynamics";
       }
 
 //---------------------------------------------------------
@@ -244,7 +249,7 @@ bool compareScores(Score* score1, Score* score2)
                   }
             s1 = s1->next1();
             s2 = s2->next1();
-            if ((s1 && !s2) || (s2 && !s2)) {
+            if ((s1 && !s2) || (s2 && !s1)) {
                   printf("   segment count different\n");
                   return false;
                   }
@@ -510,7 +515,7 @@ void TestMidi::midiTimeStretchFermataTempoEditContinuousView()
       }
 
 //---------------------------------------------------------
-//   midiTimeStretchFermata
+//   midiSingleNoteDynamics
 //---------------------------------------------------------
 
 void TestMidi::midiSingleNoteDynamics()

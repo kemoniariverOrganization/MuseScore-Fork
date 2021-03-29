@@ -51,10 +51,14 @@ static const ElementStyle tupletStyle {
 Tuplet::Tuplet(Score* s)
   : DurationElement(s)
       {
+      _direction    = Direction::AUTO;
+      _numberType   = TupletNumberType::SHOW_NUMBER;
+      _bracketType  = TupletBracketType::AUTO_BRACKET;
       _ratio        = Fraction(1, 1);
       _number       = 0;
       _hasBracket   = false;
       _isUp         = true;
+      _id           = 0;
       initElementStyle(&tupletStyle);
       }
 
@@ -77,6 +81,7 @@ Tuplet::Tuplet(const Tuplet& t)
       _p1            = t._p1;
       _p2            = t._p2;
 
+      _id            = t._id;
       // recreated on layout
       _number = 0;
       }
@@ -166,7 +171,8 @@ void Tuplet::layout()
             return;
             }
       // is in a TAB without stems, skip any format: tuplets are not shown
-      if (staff() && staff()->isTabStaff(tick()) && staff()->staffType(tick())->stemless())
+      const StaffType* stt = staffType();
+      if (stt && stt->isTabStaff() && stt->stemless())
             return;
 
       //
@@ -186,6 +192,16 @@ void Tuplet::layout()
                   _number->setXmlText(QString("%1").arg(_ratio.numerator()));
             else
                   _number->setXmlText(QString("%1:%2").arg(_ratio.numerator()).arg(_ratio.denominator()));
+
+            bool small = true;
+            for (const DurationElement* e : _elements) {
+                  if (e->isChordRest() && !toChordRest(e)->small()) {
+                        small = false;
+                        break;
+                        }
+                  }
+            _number->setMag(small ? score()->styleD(Sid::smallNoteMag) : 1.0);
+
             }
       else {
             if (_number) {
@@ -668,7 +684,8 @@ void Tuplet::layout()
 void Tuplet::draw(QPainter* painter) const
       {
       // if in a TAB without stems, tuplets are not shown
-      if (staff() && staff()->isTabStaff(tick()) && staff()->staffType(tick())->stemless())
+      const StaffType* stt = staffType();
+      if (stt && stt->isTabStaff() && stt->stemless())
             return;
 
       QColor color(curColor());
@@ -1018,7 +1035,7 @@ static bool tickGreater(const DurationElement* a, const DurationElement* b)
 
 void Tuplet::sortElements()
       {
-      qSort(_elements.begin(), _elements.end(), tickGreater);
+      std::sort(_elements.begin(), _elements.end(), tickGreater);
       }
 
 //---------------------------------------------------------
@@ -1304,7 +1321,7 @@ void Tuplet::addMissingElements()
                   Fraction f = missingElementsDuration / ratio();
                   Fraction ticksRequired = f;
                   Fraction endTick = elements().front()->tick();
-                  Fraction startTick = max(firstAvailableTick, endTick - ticksRequired);
+                  Fraction startTick = std::max(firstAvailableTick, endTick - ticksRequired);
                   if (expectedTick > startTick)
                         startTick = expectedTick;
                   missingElementsDuration -= addMissingElement(startTick, endTick);

@@ -24,9 +24,10 @@ namespace Ms {
 
 extern void genIcons();
 
-enum class Icons : signed char { Invalid_ICON = -1,
+// keep in sync with iconNames[] in icons.cpp
+enum class Icons : short { Invalid_ICON = -1,
       longaUp_ICON, brevis_ICON, note_ICON, note2_ICON, note4_ICON, note8_ICON, note16_ICON,
-      note32_ICON, note64_ICON, note128_ICON,
+      note32_ICON, note64_ICON, note128_ICON, note256_ICON, note512_ICON, note1024_ICON,
       natural_ICON, sharp_ICON, sharpsharp_ICON, flat_ICON, flatflat_ICON,
       quartrest_ICON, dot_ICON, dotdot_ICON, dot3_ICON, dot4_ICON,
       flip_ICON,
@@ -52,15 +53,14 @@ enum class Icons : signed char { Invalid_ICON = -1,
       vframe_ICON, hframe_ICON, tframe_ICON, fframe_ICON, measure_ICON, checkmark_ICON,
       mscz_ICON,
       helpContents_ICON, goHome_ICON, goPrevious_ICON, goNext_ICON, viewRefresh_ICON,
-      parentheses_ICON,
-      brackets_ICON,
+      parentheses_ICON, brackets_ICON, braces_ICON,
       timesig_allabreve_ICON, timesig_common_ICON, timesig_prolatio01_ICON, timesig_prolatio02_ICON,
       timesig_prolatio03_ICON, timesig_prolatio04_ICON, timesig_prolatio05_ICON, timesig_prolatio07_ICON,
       timesig_prolatio08_ICON, timesig_prolatio10_ICON, timesig_prolatio11_ICON, edit_ICON, reset_ICON, close_ICON,
       arrowUp_ICON, arrowDown_ICON,
-      mail_ICON, bug_ICON,
+      mail_ICON, bug_ICON, bin_ICON,
       noteTimewise_ICON,
-      arrowsMoveToTop_ICON,
+      arrowsMoveToTop_ICON, arrowsMoveToBottom_ICON,
       voice1_ICON, voice2_ICON, voice3_ICON, voice4_ICON,
       ICONS
       };

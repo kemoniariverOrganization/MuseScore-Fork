@@ -18,6 +18,7 @@
 #include "duration.h"
 #include "beam.h"
 #include "shape.h"
+#include "measure.h"
 
 namespace Ms {
 
@@ -60,6 +61,7 @@ class ChordRest : public DurationElement {
       Beam::Mode _beamMode;
       bool _up;                           // actual stem direction
       bool _small;
+      bool _melismaEnd;
 
       // CrossMeasure: combine 2 tied notes if across a bar line and can be combined in a single duration
       CrossMeasure _crossMeasure;         ///< 0: no cross-measure modification; 1: 1st note of a mod.; -1: 2nd note
@@ -89,7 +91,7 @@ class ChordRest : public DurationElement {
       Beam::Mode beamMode() const               { return _beamMode; }
 
       void setBeam(Beam* b);
-      virtual Beam* beam() const final          { return _beam; }
+      virtual Beam* beam() const final          { return  !(measure() && measure()->stemless(staffIdx())) ? _beam : nullptr; }
       int beams() const                         { return _durationType.hooks(); }
       virtual qreal upPos()   const = 0;
       virtual qreal downPos() const = 0;
@@ -101,6 +103,7 @@ class ChordRest : public DurationElement {
       virtual QPointF stemPos() const = 0;
       virtual qreal stemPosX() const = 0;
       virtual QPointF stemPosBeam() const = 0;
+      virtual qreal rightEdge() const = 0;
 
       bool up() const                           { return _up;   }
       void setUp(bool val)                      { _up = val; }
@@ -135,6 +138,8 @@ class ChordRest : public DurationElement {
       std::vector<Lyrics*>& lyrics()             { return _lyrics; }
       Lyrics* lyrics(int verse, Placement) const;
       int lastVerse(Placement) const;
+      bool isMelismaEnd() const;
+      void setMelismaEnd(bool v);
 
       virtual void add(Element*);
       virtual void remove(Element*);
@@ -159,6 +164,7 @@ class ChordRest : public DurationElement {
       bool isGrace() const;
       bool isGraceBefore() const;
       bool isGraceAfter() const;
+      Breath* hasBreathMark() const;
       void writeBeam(XmlWriter& xml) const;
       Segment* nextSegmentAfterCR(SegmentType types) const;
 
@@ -172,8 +178,8 @@ class ChordRest : public DurationElement {
       virtual Element* prevSegmentElement() override;
       virtual QString accessibleExtraInfo() const override;
       virtual Shape shape() const override;
-      virtual void layoutStem1() {};
-      virtual void computeUp()   { _up = true; };
+      virtual void layoutStem1() {}
+      virtual void computeUp()   { _up = true; }
 
       bool isFullMeasureRest() const { return _durationType == TDuration::DurationType::V_MEASURE; }
       virtual void removeMarkings(bool keepTremolo = false);

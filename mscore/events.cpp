@@ -11,7 +11,7 @@
 //=============================================================================
 
 #include "scoreview.h"
-#include "magbox.h"
+#include "zoombox.h"
 #include "musescore.h"
 #include "seq.h"
 #include "texttools.h"
@@ -20,6 +20,7 @@
 #include "scoreaccessibility.h"
 #include "libmscore/score.h"
 #include "libmscore/keysig.h"
+#include "libmscore/timesig.h"
 #include "libmscore/segment.h"
 #include "libmscore/utils.h"
 #include "libmscore/text.h"
@@ -116,18 +117,18 @@ bool ScoreView::gestureEvent(QGestureEvent *event)
             // Zoom in/out when receiving a pinch gesture
             QPinchGesture *pinch = static_cast<QPinchGesture *>(gesture);
 
-            static qreal magStart = 1.0;
+            static qreal startLogicalZoomLevel = 1.0;
             if (pinch->state() == Qt::GestureStarted) {
-                  magStart = lmag();
+                  startLogicalZoomLevel = logicalZoomLevel();
                   }
             if (pinch->changeFlags() & QPinchGesture::ScaleFactorChanged) {
-                  // On Windows, totalScaleFactor() contains the net magnification.
-                  // On OS X, totalScaleFactor() is 1, and scaleFactor() contains the net magnification.
+                  // On Windows, totalScaleFactor() contains the net zoom.
+                  // On OS X, totalScaleFactor() is 1, and scaleFactor() contains the net zoom.
                   qreal value = pinch->totalScaleFactor();
                   if (value == 1) {
                         value = pinch->scaleFactor();
                         }
-                  zoom(magStart*value, pinch->centerPoint());
+                  setLogicalZoom(ZoomIndex::ZOOM_FREE, startLogicalZoomLevel * value, pinch->centerPoint());
                   }
             }
       return true;
@@ -158,7 +159,7 @@ void ScoreView::wheelEvent(QWheelEvent* event)
             nReal = static_cast<qreal>(stepsScrolled.y()) / 120;
             }
 
-      n = (int) nReal;
+      n = static_cast<int>(nReal);
 
       //this functionality seems currently blocked by the context menu
       if (event->buttons() & Qt::RightButton) {
@@ -174,7 +175,7 @@ void ScoreView::wheelEvent(QWheelEvent* event)
 
       if (event->modifiers() & Qt::ControlModifier) { // Windows touch pad pinches also execute this
             QApplication::sendPostedEvents(this, 0);
-            zoomStep(nReal, event->pos());
+            zoomBySteps(nReal, true, event->posF());
             return;
             }
 
@@ -204,8 +205,12 @@ void ScoreView::wheelEvent(QWheelEvent* event)
 
 void ScoreView::resizeEvent(QResizeEvent* /*ev*/)
       {
-      if (_magIdx != MagIdx::MAG_FREE)
-            setMag(mscore->getMag(this));
+      // No need to do anything if we're not the currently visible score view.
+      if (this != mscore->currentScoreView())
+            return;
+
+      setLogicalZoom(_zoomIndex, calculateLogicalZoomLevel(_zoomIndex, logicalZoomLevel()));
+
       emit sizeChanged();
 
       // The score may need to be repositioned now.
@@ -384,14 +389,31 @@ void ScoreView::mousePressEventNormal(QMouseEvent* ev)
                               }
                         }
                   }
+            else if (e->isTimeSig() && !toTimeSig(e)->isLocal() && (keyState != Qt::ControlModifier) && st == SelectType::SINGLE) {
+                  // special case: select for all staves except when TimeSig is local.
+                  Segment* s = toTimeSig(e)->segment();
+                  bool first = true;
+                  for (int staffIdx = 0; staffIdx < _score->nstaves(); ++staffIdx) {
+                        Element* ee = s->element(staffIdx * VOICES);
+                        if (ee) {
+                              ee->score()->select(ee, first ? SelectType::SINGLE : SelectType::ADD);
+                              first = false;
+                              }
+                        }
+                  }
             else {
                   if (st == SelectType::ADD) {
+                        // convert range to list
+                        if (e->score()->selection().isRange()) {
+                              e->score()->selection().setState(SelState::LIST);
+                              e->score()->setUpdateAll();   // needed to clear selection rectangle
+                              }
                         // e is the top element in stacking order,
                         // but we want to replace it with "first non-measure element after a selected element"
                         // (if such an element exists)
                         QList<Element*> ll = elementsNear(editData.startMove);
                         bool found = false;
-                        for (Element* ee : ll) {
+                        for (Element* ee : qAsConst(ll)) {
                               if (found) {
                                     e = ee;
                                     if (!e->isMeasure())
@@ -413,11 +435,11 @@ void ScoreView::mousePressEventNormal(QMouseEvent* ev)
                               }
                         }
                   }
-            if (e && e->isNote()) {
-                  e->score()->updateCapo();
-                  mscore->play(e);
-                  }
             if (e) {
+                  if (e->isNote() || e->isHarmony()) {
+                        e->score()->updateCapo();
+                        mscore->play(e);
+                        }
                   _score = e->score();
                   _score->setUpdateAll();
                   }
@@ -437,10 +459,10 @@ void ScoreView::mousePressEventNormal(QMouseEvent* ev)
                         _score->select(m, st, staffIdx);
                         _score->setUpdateAll();
                         }
-                  else if (st != SelectType::ADD)
+                  else if (st == SelectType::SINGLE)
                         modifySelection = true;
                   }
-            else if (st != SelectType::ADD)
+            else if (st == SelectType::SINGLE)
                   modifySelection = true;
             }
       _score->update();
@@ -471,6 +493,7 @@ void ScoreView::mousePressEvent(QMouseEvent* ev)
       editData.pos       = editData.startMove;
       editData.buttons   = ev->buttons();
       editData.modifiers = qApp->keyboardModifiers();
+      editData.key       = 0;
 
       bool gripFound = false;
       if (hasEditGrips() && ev->button() == Qt::LeftButton) {
@@ -611,7 +634,6 @@ void ScoreView::adjustCursorForTextEditing(QMouseEvent* mouseEvent)
 
 void ScoreView::mouseMoveEvent(QMouseEvent* me)
       {
-      modifySelection = false;
       adjustCursorForTextEditing(me);
 
       if (state != ViewState::NOTE_ENTRY && editData.buttons == Qt::NoButton)
@@ -643,6 +665,7 @@ void ScoreView::mouseMoveEvent(QMouseEvent* me)
                               }
                         }
                   changeState(ViewState::DRAG);
+                  modifySelection = false;
                   break;
 
             case ViewState::NOTE_ENTRY: {
@@ -729,8 +752,16 @@ void ScoreView::mouseDoubleClickEvent(QMouseEvent* mouseEvent)
 
       Element* clickedElement = elementNear(toLogical(mouseEvent->pos()));
 
-      if (!(clickedElement && clickedElement->isEditable()))
+      if (!clickedElement)
             return;
+
+      if (!clickedElement->isEditable()) {
+            if (clickedElement->isInstrumentName()) // double-click an instrument name to open the edit staff/part properties menu
+                  elementPropertyAction("staff-props", clickedElement);
+            else if (clickedElement->isText() && (toText(clickedElement)->tid() == Tid::HEADER || toText(clickedElement)->tid() == Tid::FOOTER)) // double-click a header/footer to open the Header/Footer page in the Style dialog
+                  elementPropertyAction("style", clickedElement);
+            return;
+            }
 
       startEditMode(clickedElement);
 
@@ -809,6 +840,10 @@ void ScoreView::keyPressEvent(QKeyEvent* ev)
       else if (editData.element->isHarmony()) {
             if (editData.key == Qt::Key_Space && !(editData.modifiers & CONTROL_MODIFIER)) {
                   harmonyBeatsTab(true, editData.modifiers & Qt::ShiftModifier);
+                  return;
+                  }
+            else if (editData.key == Qt::Key_Return) {
+                  changeState(ViewState::NORMAL);
                   return;
                   }
             }
@@ -912,6 +947,7 @@ bool ScoreView::handleArrowKeyPress(const QKeyEvent* ev)
                   return false;
             }
       editData.delta   = delta;
+      editData.evtDelta = editData.moveDelta = delta;
       editData.hRaster = mscore->hRaster();
       editData.vRaster = mscore->vRaster();
       if (editData.curGrip != Grip::NO_GRIP && int(editData.curGrip) < editData.grips)
@@ -1089,6 +1125,7 @@ void ScoreView::changeState(ViewState s)
                         e->triggerLayout();
                         }
                   setDropTarget(0); // this also resets dropAnchor
+                  _score->selection().unlock("drag");
                   _score->endCmd();
                   break;
             case ViewState::DRAG_OBJECT:

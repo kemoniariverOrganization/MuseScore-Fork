@@ -35,6 +35,7 @@
 #include "figuredbass.h"
 #include "fingering.h"
 #include "fret.h"
+#include "fraction.h"
 #include "glissando.h"
 #include "hairpin.h"
 #include "harmony.h"
@@ -78,6 +79,7 @@
 #include "textframe.h"
 #include "text.h"
 #include "measurenumber.h"
+#include "mmrestrange.h"
 #include "textline.h"
 #include "tie.h"
 #include "timesig.h"
@@ -108,7 +110,7 @@ namespace Ms {
 
 void Element::spatiumChanged(qreal oldValue, qreal newValue)
       {
-      if (sizeIsSpatiumDependent())
+      if (offsetIsSpatiumDependent())
             _offset *= (newValue / oldValue);
       }
 
@@ -119,7 +121,7 @@ void Element::spatiumChanged(qreal oldValue, qreal newValue)
 
 void Element::localSpatiumChanged(qreal oldValue, qreal newValue)
       {
-      if (sizeIsSpatiumDependent())
+      if (offsetIsSpatiumDependent())
             _offset *= (newValue / oldValue);
       }
 
@@ -134,8 +136,17 @@ qreal Element::spatium() const
             }
       else {
             Staff* s = staff();
-            return s ? s->spatium(tick()) : score()->spatium();
+            return s ? s->spatium(this) : score()->spatium();
             }
+      }
+
+//---------------------------------------------------------
+//   offsetIsSpatiumDependent
+//---------------------------------------------------------
+
+bool Element::offsetIsSpatiumDependent() const
+      {
+      return sizeIsSpatiumDependent() || (_flags & ElementFlag::ON_STAFF);
       }
 
 //---------------------------------------------------------
@@ -214,6 +225,17 @@ Element* Element::linkedClone()
       }
 
 //---------------------------------------------------------
+//   deleteLater
+//---------------------------------------------------------
+
+void Element::deleteLater()
+      {
+      if (selected())
+            score()->deselect(this);
+      masterScore()->deleteLater(this);
+      }
+
+//---------------------------------------------------------
 //   scanElements
 //---------------------------------------------------------
 
@@ -263,10 +285,20 @@ Staff* Element::staff() const
 //   staffType
 //---------------------------------------------------------
 
-StaffType* Element::staffType() const
+const StaffType* Element::staffType() const
       {
       Staff* s = staff();
-      return s ? s->staffType(tick()) : 0;
+      return s ? s->staffTypeForElement(this) : nullptr;
+      }
+
+//---------------------------------------------------------
+//   onTabStaff
+//---------------------------------------------------------
+
+bool Element::onTabStaff() const
+      {
+      const StaffType* stt = staffType();
+      return stt ? stt->isTabStaff() : false;
       }
 
 //---------------------------------------------------------
@@ -310,6 +342,34 @@ Fraction Element::rtick() const
             e = e->parent();
             }
       return Fraction(0, 1);
+      }
+
+//---------------------------------------------------------
+//   playTick
+//---------------------------------------------------------
+
+Fraction Element::playTick() const
+      {
+      // Play from the element's tick position by default.
+      return tick();
+      }
+
+
+//---------------------------------------------------------
+//   beat
+//---------------------------------------------------------
+
+Fraction Element::beat() const
+      {
+      // Returns an appropriate fraction of ticks for use as a "Beat" reference
+      // in the Select All Similar filter.
+      int bar, beat, ticks;
+      TimeSigMap* tsm = score()->sigmap();
+      tsm->tickValues(tick().ticks(), &bar, &beat, &ticks);
+      int ticksB = ticks_beat(tsm->timesig(tick().ticks()).timesig().denominator());
+
+      Fraction complexFraction((++beat * ticksB) + ticks, ticksB);
+      return complexFraction.reduced();
       }
 
 //---------------------------------------------------------
@@ -442,7 +502,7 @@ QPointF Element::canvasPos() const
             else if (parent()->isChord())       // grace chord
                   measure = toSegment(parent()->parent())->measure();
             else if (parent()->isFretDiagram())
-                  return p + parent()->canvasPos();
+                  return p + parent()->canvasPos() + QPointF(toFretDiagram(parent())->centerX(), 0.0);
             else
                   qFatal("this %s parent %s\n", name(), parent()->name());
             if (measure) {
@@ -1022,6 +1082,7 @@ Element* Element::create(ElementType type, Score* score)
             case ElementType::DYNAMIC:           return new Dynamic(score);
             case ElementType::TEXT:              return new Text(score);
             case ElementType::MEASURE_NUMBER:    return new MeasureNumber(score);
+            case ElementType::MMREST_RANGE:      return new MMRestRange(score);
             case ElementType::INSTRUMENT_NAME:   return new InstrumentName(score);
             case ElementType::STAFF_TEXT:        return new StaffText(score);
             case ElementType::SYSTEM_TEXT:       return new SystemText(score);
@@ -1383,6 +1444,26 @@ bool Element::isPrintable() const
       }
 
 //---------------------------------------------------------
+//   findAncestor
+//---------------------------------------------------------
+
+Element* Element::findAncestor(ElementType t)
+      {
+      Element* e = this;
+      while (e && e->type() != t)
+            e = e->parent();
+      return e;
+      }
+
+const Element* Element::findAncestor(ElementType t) const
+      {
+      const Element* e = this;
+      while (e && e->type() != t)
+            e = e->parent();
+      return e;
+      }
+
+//---------------------------------------------------------
 //   findMeasure
 //---------------------------------------------------------
 
@@ -1533,6 +1614,24 @@ QPointF Element::symStemDownNW(SymId id) const
 QPointF Element::symStemUpSE(SymId id) const
       {
       return score()->scoreFont()->stemUpSE(id, magS());
+      }
+
+//---------------------------------------------------------
+//   symStemDownSW
+//---------------------------------------------------------
+
+QPointF Element::symStemDownSW(SymId id) const
+      {
+      return score()->scoreFont()->stemDownSW(id, magS());
+      }
+
+//---------------------------------------------------------
+//   symStemUpNW
+//---------------------------------------------------------
+
+QPointF Element::symStemUpNW(SymId id) const
+      {
+      return score()->scoreFont()->stemUpNW(id, magS());
       }
 
 //---------------------------------------------------------
@@ -1895,6 +1994,7 @@ void Element::startDrag(EditData& ed)
       eed->e = this;
       eed->pushProperty(Pid::OFFSET);
       eed->pushProperty(Pid::AUTOPLACE);
+      eed->initOffset = offset();
       ed.addData(eed);
       if (ed.modifiers & Qt::AltModifier)
             setAutoplace(false);
@@ -1910,10 +2010,13 @@ QRectF Element::drag(EditData& ed)
       if (!isMovable())
             return QRectF();
 
-      QRectF r(canvasBoundingRect());
+      const QRectF r0(canvasBoundingRect());
 
-      qreal x = ed.delta.x();
-      qreal y = ed.delta.y();
+      const ElementEditData* eed = ed.getData(this);
+
+      const QPointF offset0 = ed.moveDelta + eed->initOffset;
+      qreal x = offset0.x();
+      qreal y = offset0.y();
 
       qreal _spatium = spatium();
       if (ed.hRaster) {
@@ -1935,6 +2038,7 @@ QRectF Element::drag(EditData& ed)
             //
             // restrict move to page boundaries
             //
+            const QRectF r(canvasBoundingRect());
             Page* p = 0;
             Element* e = this;
             while (e) {
@@ -1967,7 +2071,7 @@ QRectF Element::drag(EditData& ed)
                         setOffset(QPointF(x, y));
                   }
             }
-      return canvasBoundingRect() | r;
+      return canvasBoundingRect() | r0;
       }
 
 //---------------------------------------------------------
@@ -1981,7 +2085,7 @@ void Element::endDrag(EditData& ed)
       ElementEditData* eed = ed.getData(this);
       if (!eed)
             return;
-      for (PropertyData pd : eed->propertyData) {
+      for (const PropertyData &pd : qAsConst(eed->propertyData)) {
             setPropertyFlags(pd.id, pd.f); // reset initial property flags state
             PropertyFlags f = pd.f;
             if (f == PropertyFlags::STYLED)
@@ -1989,6 +2093,33 @@ void Element::endDrag(EditData& ed)
             score()->undoPropertyChanged(this, pd.id, pd.data, f);
             setGenerated(false);
             }
+      }
+
+//---------------------------------------------------------
+//   genericDragAnchorLines
+//---------------------------------------------------------
+
+QVector<QLineF> Element::genericDragAnchorLines() const
+      {
+      qreal xp = 0.0;
+      for (Element* e = parent(); e; e = e->parent())
+            xp += e->x();
+      qreal yp;
+      if (parent()->isSegment()) {
+            System* system = toSegment(parent())->measure()->system();
+            const int stIdx = staffIdx();
+            yp = system ? system->staffCanvasYpage(stIdx) : 0.0;
+            if (placement() == Placement::BELOW)
+                  yp += system ? system->staff(stIdx)->bbox().height() : 0.0;
+            //adjust anchor Y positions to staffType offset
+            if (staff())
+                yp += staff()->staffTypeForElement(this)->yoffset().val()* spatium();
+            }
+      else
+            yp = parent()->canvasPos().y();
+      QPointF p1(xp, yp);
+      QLineF anchorLine(p1, canvasPos());
+      return { anchorLine };
       }
 
 //---------------------------------------------------------
@@ -2067,9 +2198,12 @@ void Element::endEditDrag(EditData& ed)
       ElementEditData* eed = ed.getData(this);
       bool changed = false;
       if (eed) {
-            for (PropertyData pd : eed->propertyData) {
+            for (const PropertyData &pd : qAsConst(eed->propertyData)) {
                   setPropertyFlags(pd.id, pd.f); // reset initial property flags state
-                  if (score()->undoPropertyChanged(this, pd.id, pd.data))
+                  PropertyFlags f = pd.f;
+                  if (f == PropertyFlags::STYLED)
+                        f = PropertyFlags::UNSTYLED;
+                  if (score()->undoPropertyChanged(this, pd.id, pd.data, f))
                         changed = true;
                   }
             eed->propertyData.clear();
@@ -2364,7 +2498,7 @@ void Element::autoplaceSegmentElement(bool above, bool add)
                         si = firstVis;
                   }
             else {
-                  qreal mag = staff()->mag(tick());
+                  qreal mag = staff()->mag(this);
                   sp *= mag;
                   }
             qreal minDistance = _minDistance.val() * sp;
@@ -2372,6 +2506,12 @@ void Element::autoplaceSegmentElement(bool above, bool add)
             SysStaff* ss = m->system()->staff(si);
             QRectF r = bbox().translated(m->pos() + s->pos() + pos());
 
+            // Adjust bbox Y pos for staffType offset 
+            if (staffType()) {
+                  qreal stYOffset = staffType()->yoffset().val() * sp;
+                  r.translate(0.0, stYOffset);
+                  }
+            
             SkylineLine sk(!above);
             qreal d;
             if (above) {

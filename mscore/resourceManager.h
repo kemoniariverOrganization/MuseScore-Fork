@@ -29,12 +29,14 @@ class ResourceManager : public QDialog, public Ui::Resource
       bool verifyFile(QString path, QString hash);
       bool verifyLanguageFile(QString filename, QString hash);
       
+      QPushButton* currentLanguageButton = nullptr;
+      
    public:
       explicit ResourceManager(QWidget *parent = 0);
       void selectLanguagesTab();
       void selectExtensionsTab();
       
-      static inline QString baseAddr() { return "http://extensions.musescore.org/3.4/"; }
+      static inline QString baseAddr() { return "http://extensions.musescore.org/3.6/"; }
 
    private:
       QMap <QPushButton *, QString> languageButtonMap; 	// QPushButton -> filename

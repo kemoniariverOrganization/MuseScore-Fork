@@ -197,7 +197,7 @@ bool Score::sanityCheck(const QString& name)
                               }
                         }
                   if (voices[0] != mLen) {
-                        QString msg = QObject::tr("Measure %1, staff %2 incomplete. Expected: %3; Found: %4").arg(mNumber).arg( staffIdx+1).arg(mLen.print()).arg(voices[0].print());
+                        QString msg = QObject::tr("Measure %1, staff %2 incomplete. Expected: %3; Found: %4").arg(mNumber).arg(staffIdx + 1).arg(mLen.print(), voices[0].print());
                         qDebug() << msg;
                         error += QString("%1\n").arg(msg);
 #ifndef NDEBUG
@@ -214,7 +214,7 @@ bool Score::sanityCheck(const QString& name)
                         }
                   for (int v = 1; v < VOICES; ++v) {
                         if (voices[v] > mLen) {
-                              QString msg = QObject::tr("Measure %1, staff %2, voice %3 too long. Expected: %4; Found: %5").arg( mNumber).arg(staffIdx + 1).arg(v+1).arg(mLen.print()).arg(voices[v].print());
+                              QString msg = QObject::tr("Measure %1, staff %2, voice %3 too long. Expected: %4; Found: %5").arg(mNumber).arg(staffIdx + 1).arg(v + 1).arg(mLen.print(), voices[v].print());
                               qDebug() << msg;
                               error += QString("%1\n").arg(msg);
 #ifndef NDEBUG
@@ -388,7 +388,7 @@ void Measure::checkMeasure(int staffIdx)
             if (f > expectedPos) {
                   // don't fill empty voices
                   if (expectedPos.isNotZero())
-                        fillGap(expectedPos, ticks() - expectedPos, track, stretch);
+                        fillGap(expectedPos, f - expectedPos, track, stretch);
                   }
             else if (f < expectedPos)
                   qDebug("measure overrun %6d, %d > %d, track %d", tick().ticks(), expectedPos.ticks(), f.ticks(), track);

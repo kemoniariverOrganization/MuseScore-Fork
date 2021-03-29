@@ -10,6 +10,8 @@
 //  the file LICENCE.GPL
 //=============================================================================
 
+#include "global/log.h"
+
 #include "measure.h"
 #include "score.h"
 #include "system.h"
@@ -17,6 +19,7 @@
 #include "slurtie.h"
 #include "tie.h"
 #include "chord.h"
+#include "page.h"
 
 namespace Ms {
 
@@ -41,33 +44,48 @@ SlurTieSegment::SlurTieSegment(const SlurTieSegment& b)
       }
 
 //---------------------------------------------------------
-//   gripAnchor
+//   gripAnchorLines
 //---------------------------------------------------------
 
-QPointF SlurTieSegment::gripAnchor(Grip grip) const
+QVector<QLineF> SlurTieSegment::gripAnchorLines(Grip grip) const
       {
+      QVector<QLineF> result;
+
       if (!system() || (grip != Grip::START && grip != Grip::END))
-            return QPointF();
+            return result;
 
       QPointF sp(system()->pagePos());
       QPointF pp(pagePos());
       QPointF p1(ups(Grip::START).p + pp);
       QPointF p2(ups(Grip::END).p + pp);
 
+      QPointF anchorPosition;
+      int gripIndex = static_cast<int>(grip);
+
       switch (spannerSegmentType()) {
             case SpannerSegmentType::SINGLE:
-                  return grip == Grip::START ? p1 : p2;
+                  anchorPosition = (grip == Grip::START ? p1 : p2);
+                  break;
 
             case SpannerSegmentType::BEGIN:
-                  return grip == Grip::START ? p1 : system()->abbox().topRight();
+                  anchorPosition = (grip == Grip::START ? p1 : system()->abbox().topRight());
+                  break;
 
             case SpannerSegmentType::MIDDLE:
-                  return grip == Grip::START ? sp : system()->abbox().topRight();
+                  anchorPosition = (grip == Grip::START ? sp : system()->abbox().topRight());
+                  break;
 
             case SpannerSegmentType::END:
-                  return grip == Grip::START ? sp : p2;
+                  anchorPosition = (grip == Grip::START ? sp : p2);
+                  break;
             }
-      return QPointF();
+
+      const Page* p = system()->page();
+      const QPointF pageOffset = p ? p->pos() : QPointF();
+
+      result << QLineF(anchorPosition, gripsPositions().at(gripIndex)).translated(pageOffset);
+
+      return result;
       }
 
 //---------------------------------------------------------
@@ -87,6 +105,7 @@ void SlurTieSegment::move(const QPointF& s)
 
 void SlurTieSegment::spatiumChanged(qreal oldValue, qreal newValue)
       {
+      Element::spatiumChanged(oldValue, newValue);
       qreal diff = newValue / oldValue;
       for (UP& u : _ups)
             u.off *= diff;
@@ -115,6 +134,9 @@ std::vector<QPointF> SlurTieSegment::gripsPositions(const EditData&) const
 void SlurTieSegment::startEditDrag(EditData& ed)
       {
       ElementEditData* eed = ed.getData(this);
+      IF_ASSERT_FAILED(eed) {
+            return;
+            }
       for (auto i : { Pid::SLUR_UOFF1, Pid::SLUR_UOFF2, Pid::SLUR_UOFF3, Pid::SLUR_UOFF4, Pid::OFFSET })
             eed->pushProperty(i);
       }
@@ -525,44 +547,6 @@ QVariant SlurTie::propertyDefault(Pid id) const
             default:
                   return Spanner::propertyDefault(id);
             }
-      }
-
-//---------------------------------------------------------
-//   firstNoteRestSegmentX
-//    in System() coordinates
-//    returns the position just after the last non-chordrest segment
-//---------------------------------------------------------
-
-qreal SlurTie::firstNoteRestSegmentX(System* system)
-      {
-      for (const MeasureBase* mb : system->measures()) {
-            if (mb->isMeasure()) {
-                  const Measure* measure = static_cast<const Measure*>(mb);
-                  for (const Segment* seg = measure->first(); seg; seg = seg->next()) {
-                        if (seg->isChordRestType()) {
-                              // first CR found; back up to previous segment
-                              seg = seg->prev();
-                              if (seg) {
-                                    // find maximum width
-                                    qreal width = 0.0;
-                                    int n = score()->nstaves();
-                                    for (int i = 0; i < n; ++i) {
-                                          if (!system->staff(i)->show())
-                                                continue;
-                                          Element* e = seg->element(i * VOICES);
-                                          if (e)
-                                                width = qMax(width, e->width());
-                                          }
-                                    return seg->measure()->pos().x() + seg->pos().x() + width;
-                                    }
-                              else
-                                    return 0.0;
-                              }
-                        }
-                  }
-            }
-      qDebug("firstNoteRestSegmentX: did not find segment");
-      return 0.0;
       }
 
 //---------------------------------------------------------
