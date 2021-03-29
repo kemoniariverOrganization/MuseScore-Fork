@@ -1609,7 +1609,7 @@ void ODLADriver::onIncomingData()
                     else if (txt.compare("TURN") == 0) { ft = SymId::ornamentTurn; }
                     else if (txt.compare("TRILL") == 0) { ft = SymId::ornamentTrill; }
                     else if (txt.compare("MORDENT") == 0) { ft = SymId::ornamentMordent; }
-                    else if (txt.compare("INVERTED_MORDENT") == 0) { ft = SymId::ornamentMordentInverted; }
+                    else if (txt.compare("INVERTED_MORDENT") == 0) { ft = SymId::ornamentShortTrill; }
                     else if (txt.compare("TREMBLEMENT") == 0) { ft = SymId::ornamentTremblement; }
                     else if (txt.compare("PRALL_MORDENT") == 0) { ft = SymId::ornamentPrallMordent; }
                     else {
