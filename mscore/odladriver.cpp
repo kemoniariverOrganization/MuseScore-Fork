@@ -5,6 +5,8 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QTimer>
+#include "libmscore/articulation.h"
+#include "libmscore/fermata.h"
 #include "libmscore/score.h"
 #include "libmscore/accidental.h"
 #include "libmscore/clef.h"
@@ -1558,12 +1560,12 @@ void ODLADriver::onIncomingData()
 
                 if (parts.length() > 1)
                 {
-                    bool supported = true;
+                    bool fermata = false;
                     QString txt = parts.at(1);
                     SymId ft = SymId::fermataAbove;
-                    if (txt.compare("FERMATA_NORMAL") == 0) { ft = SymId::fermataAbove; }
-                    else if (txt.compare("FERMATA_LONG") == 0) { ft = SymId::fermataLongAbove; }
-                    else if (txt.compare("FERMATA_LONG_HENZE") == 0) { ft = SymId::fermataLongHenzeAbove; }
+                    if (txt.compare("FERMATA_NORMAL") == 0) { ft = SymId::fermataAbove; fermata = true;}
+                    else if (txt.compare("FERMATA_LONG") == 0) { ft = SymId::fermataLongAbove; fermata = true;}
+                    else if (txt.compare("FERMATA_LONG_HENZE") == 0) { ft = SymId::fermataLongHenzeAbove; fermata = true;}
                     else if (txt.compare("ACCENT") == 0) { ft = SymId::articAccentAbove; }
                     else if (txt.compare("STACCATO") == 0) { ft = SymId::articStaccatoAbove; }
                     else if (txt.compare("STACCATISSIMO_WEDGE") == 0) { ft = SymId::articStaccatissimoWedgeAbove; }
@@ -1583,16 +1585,34 @@ void ODLADriver::onIncomingData()
                     else if (txt.compare("UP_BOW") == 0) { ft = SymId::stringsUpBow; }
                     else if (txt.compare("DOWN_BOW") == 0) { ft = SymId::stringsDownBow; }
                     else if (txt.compare("SNAP_PIZZICATO") == 0) { ft = SymId::pluckedSnapPizzicatoAbove; }
-                    else {
-                        supported = false;
-                    }
 
-                    if (supported)
+                    _currentScore->startCmd();
+                    Selection sel = _currentScore->selection();
+                    for (Element* target : sel.elements())
                     {
-                        _currentScore->startCmd();
-                        _currentScore->addArticulation(ft);
-                        _currentScore->endCmd();
+                        /* We have to distinguish because fermata only can be
+                         * inserted on a rest, and the control isn't done
+                         * through SimID but through ElementType */
+                        Element *newElement;
+                        if(fermata)
+                            newElement = new Fermata(ft, _currentScore);
+                        else
+                            newElement = new Articulation(ft, _currentScore);
+
+                        EditData& dropData   = _scoreView->getEditData();
+                        dropData.pos         = target->pagePos();
+                        dropData.dropElement = newElement;
+
+                        if (target->acceptDrop(dropData))
+                        {
+                              Element* el = target->drop(dropData);
+                              if (el && !_scoreView->noteEntryMode())
+                                    _currentScore->select(el, SelectType::SINGLE, 0);
+
+                              dropData.dropElement = 0;
+                        }
                     }
+                    _currentScore->endCmd();
                 }
             }
 
@@ -1838,7 +1858,8 @@ ClefType ODLADriver::getClef(Element *e)
 // Get the time signature of the context of element
 Fraction ODLADriver::getTimeSig(Element *e)
 {
-    return e->score()->sigmap()->timesig(0).timesig();
+    Ms::Element* prev = findElementBefore(e, ElementType::TIMESIG);
+    return (static_cast<TimeSig*>(prev))->sig();
 }
 
 // Get the Staff Key of the element

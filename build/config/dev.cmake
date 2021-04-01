@@ -17,8 +17,8 @@
 #  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #=============================================================================
 
-set(MSCORE_UNSTABLE TRUE)          # Mark as unstable
-set(MSCORE_RELEASE_CHANNEL "devel")
+set(MSCORE_UNSTABLE FALSE)          # Mark as unstable
+set(MSCORE_RELEASE_CHANNEL "ODLA")
 
 if (NOT MUSESCORE_VERSION_LABEL)
     SET(MUSESCORE_VERSION_LABEL "Development")
