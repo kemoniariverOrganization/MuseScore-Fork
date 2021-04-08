@@ -6,6 +6,9 @@
 #include "scoreview.h"
 #include "libmscore/spanner.h"
 #include "libmscore/select.h"
+#include <QTreeWidgetItem>
+#include <mscore/palette/palettetree.h>
+#include <mscore/palette/paletteworkspace.h>
 
 namespace ODLA {
 
@@ -67,35 +70,21 @@ class ODLADriver : public QObject
 
     Q_OBJECT
 public:
-    explicit ODLADriver(QObject *parent = nullptr);
-
+    static ODLADriver* instance(QObject* parent = nullptr);
     void setScoreView(Ms::ScoreView* scoreView);
 
-    static QString nextValidFileName(QString prefix, QString ext = "mscx");
-    static QString nextUntitledSuffixNumber(QString untitledNamePrefix, QString ext = "mscx");
+private:
+    ODLADriver(QObject *parent = nullptr);
+    static ODLADriver * _instance;
 
-signals:
-
-public slots:
-    void attemptConnection();
-    void setCurrentScore(Ms::MasterScore* current);
-
-protected slots:
-    void onConnected();
-    void onIncomingData();
-    void collectAndSendStatus();
-
-protected:
     QLocalSocket* _localSocket;
     Ms::MasterScore* _currentScore;
     Ms::ScoreView* _scoreView;
-    QString _untitledPrefix;
-
+    QTreeWidget * _palette;
     bool _editingChord;
+    QMap<QString, Ms::Element*> _paletteItemList;
 
-    void setNoteEntryMode(bool enabled);
     bool addSpannerToCurrentSelection(Ms::Spanner* spanner);
-
     quint8 getNotePitch(Ms::Element *e);
     Ms::AccidentalType getNoteAccident(Ms::Element *e);
     Ms::TDuration::DurationType getDuration(Ms::Element *e);
@@ -108,10 +97,18 @@ protected:
     Ms::Key getKeySignature(Ms::Element *e);
     quint8 getVoice(Ms::Element *e);
     int getBPM(Ms::Element *e);
-
     Ms::Element* findElementBefore(Ms::Element *el, Ms::ElementType type, int staffIdx = -1);
     Ms::Element* findElementParent(Ms::Element *el, Ms::ElementType type);
     QTimer *_reconnectTimer;
+
+public slots:
+    void attemptConnection();
+    void setCurrentScore(Ms::MasterScore* current);
+
+protected slots:
+    void onConnected();
+    void onIncomingData();
+    void collectAndSendStatus();
 };
 
 } // namespace ODLA

@@ -2020,7 +2020,7 @@ MuseScore::MuseScore()
 
       connect(qApp, &QGuiApplication::focusWindowChanged, this, &MuseScore::onFocusWindowChanged);
 
-      _odlaDriver = new ODLA::ODLADriver(this);
+      _odlaDriver = ODLA::ODLADriver::instance(this);
       }
 
 MuseScore::~MuseScore()
