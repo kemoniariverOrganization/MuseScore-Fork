@@ -12,71 +12,102 @@
 
 namespace ODLA {
 
+enum command_type_t: uint8_t
+{
+    MS_SHORTCUT = 0,
+    SV_SHORTCUT = 1,
+    CV_SHORTCUT = 2,
+    PALETTE = 3,
+    INSERT_MEASURE = 4,
+    GOTO = 5,
+    SELECT = 6,
+    COPY = 7,
+    PASTE = 8,
+    STAFF_PRESSED = 9,
+    ALTERATION_BRACKETS = 10,
+    LINEWVIEW = 11,
+    PAGEVIEW = 12,
+    TEMPO = 13,
+    METRNOME = 14
+};
+
+struct struct_command_t
+{
+    Ms::ScoreState stateBefore;
+    Ms::ScoreState stateAfter;
+    command_type_t command;
+    int par1;
+    int par2;
+    QString string;
+};
+
+enum selection_type_t: char
+{
+    NO_ELEMENT,
+    SINGLE_ELEMENT,
+    RANGE_ELEMENT,
+};
+
+union state_message_t
+{
+    struct common_fields_t
+    {
+        quint8 msgLen;
+        selection_type_t type;
+        Ms::ScoreState mscoreState;
+        Ms::SelState selectionState;
+        int selectedElements;
+    } common_fields;
+
+    struct element_fields_t
+    {
+        struct common_fields_t common_fields;
+        Ms::ElementType elementType;
+        quint8 notePitch;
+        Ms::AccidentalType noteAccident;
+        Ms::TDuration::DurationType duration;
+        quint8 dotsNum;
+        int measureNum;
+        quint8 beat;
+        quint8 staff;
+        Ms::ClefType clef;
+        quint8 timeSignatureNum;
+        quint8 timeSignatureDen;
+        Ms::Key keySignature;
+        quint8 voiceNum;
+        int bpm;
+    } element_fields;
+
+    struct range_fields_t
+    {
+        struct common_fields_t common_fields;
+        int firstMesaure;
+        int lastMesaure;
+        quint8 firstBeat;
+        quint8 lastBeat;
+        quint8 firstStaff;
+        quint8 lastStaff;
+    } range_fields;
+
+    char data[sizeof(element_fields_t)];
+};
+
 /*!
  * \brief The ODLADriver class
  */
 class ODLADriver : public QObject
 {
-    enum messageType: char
-    {
-        NO_ELEMENT,
-        SINGLE_ELEMENT,
-        RANGE_ELEMENT,
-    };
-
-    union state_message_t
-    {
-        struct common_fields_t
-        {
-            quint8 msgLen;
-            messageType type;
-            Ms::ScoreState mscoreState;
-            Ms::SelState selectionState;
-            int selectedElements;
-        } common_fields;
-
-        struct element_fields_t
-        {
-            struct common_fields_t common_fields;
-            Ms::ElementType elementType;
-            quint8 notePitch;
-            Ms::AccidentalType noteAccident;
-            Ms::TDuration::DurationType duration;
-            quint8 dotsNum;
-            int measureNum;
-            quint8 beat;
-            quint8 staff;
-            Ms::ClefType clef;
-            quint8 timeSignatureNum;
-            quint8 timeSignatureDen;
-            Ms::Key keySignature;
-            quint8 voiceNum;
-            int bpm;
-        } element_fields;
-
-        struct range_fields_t
-        {
-            struct common_fields_t common_fields;
-            int firstMesaure;
-            int lastMesaure;
-            quint8 firstBeat;
-            quint8 lastBeat;
-            quint8 firstStaff;
-            quint8 lastStaff;
-        } range_fields;
-
-        char data[sizeof(element_fields_t)];
-    };
-
     Q_OBJECT
 public:
+    friend QDataStream &operator>>(QDataStream &, struct_command_t &);
+
     static ODLADriver* instance(QObject* parent = nullptr);
-    void setScoreView(Ms::ScoreView* scoreView);
+    void setScoreView(Ms::ScoreView* scoreView) {_scoreView = scoreView;};
 
 private:
     ODLADriver(QObject *parent = nullptr);
     static ODLADriver * _instance;
-
+    QTranslator _localTranslator;
     QLocalSocket* _localSocket;
     Ms::MasterScore* _currentScore;
     Ms::ScoreView* _scoreView;
