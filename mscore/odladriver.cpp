@@ -56,8 +56,8 @@ QDataStream& operator>>(QDataStream &stream, struct_command_t &m)
     int stateBefore;
     int stateAfter;
     uint8_t command;
-    stream >> stateBefore;  m.stateBefore = static_cast<Ms::ScoreState>(stateBefore);
-    stream >> stateAfter;   m.stateAfter = static_cast<Ms::ScoreState>(stateAfter);
+    stream >> stateBefore;  m.stateBefore = static_cast<Ms::ViewState>(stateBefore);
+    stream >> stateAfter;   m.stateAfter = static_cast<Ms::ViewState>(stateAfter);
     stream >> command;      m.command = static_cast<command_type_t>(command);
     stream >> m.par1;
     stream >> m.par2;
@@ -106,136 +106,124 @@ void ODLADriver::onConnected()
 {
     _reconnectTimer->stop();
     qDebug() << "Connected to ODLA server";
-    Ms::MuseScore* _museScore = qobject_cast<Ms::MuseScore*>(this->parent());
     mscore->showMasterPalette(""); //Trick to load palette objects
-    PaletteWorkspace* pw = _museScore->getPaletteWorkspace();
-    const PaletteTree* tree = pw->masterPaletteModel()->paletteTree();
-    // Add all palette elements in a QMap
-    for (auto& p : tree->palettes)
-    {
-        qDebug() << "!!!! list of palette: " << p->name() << "n." << int(p->type());
-        for (int i = 0; i < p->ncells(); ++i)
-        {
-            QString name = p->cell(i)->name;
-            QString tag = p->cell(i)->tag;
-            Element* element = p->cell(i)->element.get();
-            if(name.count(QRegExp("%\\d+")) == 1)
-            {
-                for(int arg = 0; _paletteItemList[name.arg(arg)]; arg++) //already exist
-                    name = name.arg(arg);
-            }
-
-            qDebug() << name << "\t" << int(p->type()) << "\t" << i;
-            _paletteItemList[name] = element;
-        }
-    }
 }
 
 void ODLADriver::onIncomingData()
 {
-    static Ms::ScoreState nextStatus = Ms::ScoreState::STATE_ALL;
     // We can't move Musescore cast in odladriver.h in order to avoiding circular include
     Ms::MuseScore* _museScore = qobject_cast<Ms::MuseScore*>(this->parent());
     _museScore->setWindowState( (_museScore->windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
     _museScore->raise();
-    _museScore->activateWindow();
+    _museScore->activateWindow();    
+
+    QAction* playAction = getAction("play");
 
     struct_command_t in;
     QByteArray data = _localSocket->readAll();
     QDataStream stream(&data, QIODevice::ReadOnly);
     stream >> in;
 
-
-    if (nextStatus != STATE_ALL)
-        _museScore->changeState(nextStatus);
-
-    nextStatus = in.stateAfter;
-
-    if (in.stateBefore != STATE_ALL)
-    _museScore->changeState(in.stateBefore);
-
-    //if (MScore::debugMode)
-    {
-        qDebug() << "From ODLA:\n command: " << in.command
-        << "par1: " << in.par1
-        << "par2: " << in.par2
-        << "string: " << in.string
-        << "stateAfter: " << int(in.stateAfter)
-        << "stateBefore: " << int(in.stateBefore)
-        << "size: " << data.size();
-    }
+//    if (nextStatus != STATE_ALL)
+//    {
+//        _museScore->changeState(nextStatus);
+//        nextStatus = in.stateAfter;
+//    }
 
     if (!_currentScore || !_scoreView)
         return;
 
-    if (in.stateBefore != STATE_ALL)
-        _museScore->changeState(in.stateBefore);
+    if (int(in.stateBefore) != -1 && _scoreView->state != in.stateBefore)
+    {
+        qDebug() << "change state from" << int(_scoreView->state) << " to " << int(in.stateBefore);
+        _scoreView->changeState(in.stateBefore);
+        QCoreApplication::processEvents();
+    }
 
+    qDebug() << "From ODLA:\n command: " << in.command
+    << "par1: " << in.par1
+    << "par2: " << in.par2
+    << "string: " << in.string
+    << "stateAfter: " << int(in.stateAfter)
+    << "stateBefore: " << int(in.stateBefore)
+    << "size: " << data.size();
 
     switch (in.command)
     {
-        case CV_SHORTCUT:
+        case PLAY:
         {
-            _currentScore->startCmd();
-            _currentScore->cmd(getAction(in.string.toUtf8()), _scoreView->getEditData());
-            _currentScore->endCmd();
+            if(playAction->isChecked()) break;
+            playAction->trigger();
+            playAction->setChecked(true);
+            qDebug() << "Play started/resumed";
             break;
         }
 
-        case SV_SHORTCUT:
+        case STOP:
         {
-            _currentScore->startCmd();
-            _scoreView->cmd(getAction(in.string.toUtf8()));
-            _currentScore->endCmd();
+            if(!playAction->isChecked()) break;
+            playAction->trigger();
+            playAction->setChecked(false);
+            _museScore->cmd(getAction("rewind"));
+            qDebug() << "Play stopped";
+            break;
+        }
+
+        case PAUSE:
+        {
+            if(!playAction->isChecked()) break;
+            playAction->trigger();
+            playAction->setChecked(false);
+            qDebug() << "Play paused";
             break;
         }
 
         case MS_SHORTCUT:
         {
-            _museScore->cmd(getAction(in.string.toUtf8()),in.string.toUtf8());
+            if(in.string.isEmpty())
+                break;
+            _currentScore->startCmd();
+            getAction(in.string.toUtf8())->trigger();
+            _currentScore->endCmd();
             break;
         }
 
         case PALETTE:
         {
-            Ms::MuseScore* _museScore = qobject_cast<Ms::MuseScore*>(this->parent());
-            //mscore->showMasterPalette(""); //Trick to load palette objects
-            PaletteWorkspace* pw = _museScore->getPaletteWorkspace();
+            auto element = searchFromPalette(in.par1, in.par2);
+            if(element == nullptr) break;
 
-            int paletteType = in.par1;
-            int cellIdx = in.par2;
-
-            auto tree = pw->masterPaletteModel()->paletteTree();
-
-            for (auto& p : tree->palettes)
+            switch(element->type())
             {
-                if(int(p->type()) == paletteType)
+                case ElementType::MARKER:   // marker and jump elements
+                case ElementType::JUMP:     // cannot be insert by clicking
+                    emulateDrop(element, _currentScore->inputState().cr()->measure());
+                    break;
+
+                case ElementType::TEMPO_TEXT:
                 {
-                    qDebug() << "trovata palette" << p->name();
-                    auto cellNumber = p->ncells();
-                    qDebug() << "cellIdx" << cellIdx << "cellNumber" << cellNumber;
-                    if(cellIdx < cellNumber)
+                    qDebug() << "IS TEMPO TEXT!";
+                    auto tempo = static_cast<TempoText*>(element);
+                    bool ok = false;
+                    int bpm = in.string.toInt(&ok);
+                    if(ok)
                     {
-                        Element* e = p->cell(cellIdx)->element.get();
-                        if(e != nullptr)
-                            Palette::applyPaletteElement(e);
+                        tempo->setTempo(bpm);
+                        qDebug() << "setting bpm: " << bpm;
                     }
+                    Palette::applyPaletteElement(tempo);
                     break;
                 }
+
+                default:
+                    Palette::applyPaletteElement(element);
             }
             break;
         }
 
         case INSERT_MEASURE:
         {
-            bool ok;
-            QString msg(in.string.toUtf8());
-            int measures = msg.split(":").last().toInt(&ok);
-            if(ok)
-            {
-                _scoreView->cmdInsertMeasures(measures, ElementType::MEASURE);
-                QString msg("Inserted %1 measures");
-            }
+            _scoreView->cmdInsertMeasures(in.par1, ElementType::MEASURE);
             break;
         }
 
@@ -282,52 +270,6 @@ void ODLADriver::onIncomingData()
 
             if (MScore::debugMode)
                 qDebug() << "selecting from " << from << "to " << to;
-            break;
-        }
-
-        // copy selection
-        case COPY:
-        {
-            if (_scoreView)
-            {
-                if (_scoreView->noteEntryMode())
-                {
-                    _currentScore->startCmd();
-                    _currentScore->inputState().setNoteEntryMethod(NoteEntryMethod::STEPTIME);
-                    _scoreView->cmd(getAction("note-input"));
-
-                    // force scoreView's state machine to process state transitions
-                    QCoreApplication::processEvents();
-
-                    _currentScore->inputState().setNoteEntryMode(false);
-                    _currentScore->endCmd();
-                }
-
-                _scoreView->normalCopy();
-            }
-            break;
-        }
-
-        // paste selection
-        case PASTE:
-        {
-            if (_scoreView)
-            {
-                if (_scoreView->noteEntryMode())
-                {
-                    _currentScore->startCmd();
-                    _currentScore->inputState().setNoteEntryMethod(NoteEntryMethod::STEPTIME);
-                    _scoreView->cmd(getAction("note-input"));
-
-                    // force scoreView's state machine to process state transitions
-                    QCoreApplication::processEvents();
-
-                    _currentScore->inputState().setNoteEntryMode(false);
-                    _currentScore->endCmd();
-                }
-
-                _scoreView->normalPaste();
-            }
             break;
         }
 
@@ -452,6 +394,29 @@ void ODLADriver::onIncomingData()
     collectAndSendStatus();
 }
 
+Element *ODLADriver::searchFromPalette(int paletteType, int cellIdx)
+{
+    Ms::MuseScore* _museScore = qobject_cast<Ms::MuseScore*>(this->parent());
+    PaletteWorkspace* pw = _museScore->getPaletteWorkspace();
+    auto tree = pw->masterPaletteModel()->paletteTree();
+    for (auto& p : tree->palettes)
+        if(int(p->type()) == paletteType)
+            return cellIdx < p->ncells() ? p->cell(cellIdx)->element.get() : nullptr;
+    return nullptr;
+}
+
+void ODLADriver::emulateDrop(Element *e, Element *target)
+{
+    EditData& dropData = _scoreView->getEditData();
+    dropData.pos         = target->pagePos();
+    dropData.dragOffset  = QPointF();
+    dropData.dropElement = e;
+    _currentScore->startCmd();
+    target->drop(dropData);
+    _currentScore->endCmd();
+}
+
+
 // Send status to Odla
 void ODLADriver::collectAndSendStatus()
 {
@@ -461,7 +426,7 @@ void ODLADriver::collectAndSendStatus()
 
     int len = status_message.common_fields.msgLen  = sizeof(state_message_t::common_fields_t);
     status_message.common_fields.type = NO_ELEMENT;                         // type (0 for status reply) TODO: craete protocol
-    status_message.common_fields.mscoreState = _scoreView->mscoreState();  // state of input
+    status_message.common_fields.mscoreState = _scoreView->state;// state of input
     status_message.common_fields.selectionState = sel.state();             // type of selection
     status_message.common_fields.selectedElements = sel.elements().size(); // number of elements selected
 
@@ -583,11 +548,7 @@ int ODLADriver::getMeasureNumber(Ms::Element* e)
 // Get beat of an element in a measure
 quint8 ODLADriver::getBeat(Ms::Element* e)
 {
-    Segment* seg;
-    if(e->type() != ElementType::SEGMENT)
-        seg = static_cast<Segment*>(findElementParent(e, ElementType::SEGMENT));
-    else
-        seg = static_cast<Segment*>(e);
+    Segment* seg = static_cast<Segment*>(e->findAncestor(ElementType::SEGMENT));
     if(!seg) return 0;
 
     int bar = 0;
@@ -676,15 +637,6 @@ Element *ODLADriver::findElementBefore(Element *el, ElementType type, int staffI
     }
     return NULL;
 }
-
-Element *ODLADriver::findElementParent(Element *el, ElementType type)
-{
-    Element *p = el;
-    while (p && p->type() != type)
-        p = p->parent();
-    return p;
-}
-
 /*!
  * \brief ODLADriver::setCurrentScore
  * \param current

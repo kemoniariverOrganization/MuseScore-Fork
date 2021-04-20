@@ -14,27 +14,26 @@ namespace ODLA {
 
 enum command_type_t: uint8_t
 {
-    MS_SHORTCUT = 0,
-    SV_SHORTCUT = 1,
-    CV_SHORTCUT = 2,
-    PALETTE = 3,
-    INSERT_MEASURE = 4,
-    GOTO = 5,
-    SELECT = 6,
-    COPY = 7,
-    PASTE = 8,
-    STAFF_PRESSED = 9,
-    ALTERATION_BRACKETS = 10,
-    LINEWVIEW = 11,
-    PAGEVIEW = 12,
-    TEMPO = 13,
-    METRNOME = 14
+    MS_SHORTCUT,
+    PALETTE,
+    INSERT_MEASURE,
+    GOTO,
+    SELECT,
+    STAFF_PRESSED,
+    ALTERATION_BRACKETS,
+    LINEWVIEW,
+    PAGEVIEW,
+    TEMPO,
+    METRNOME,
+    PLAY,
+    PAUSE,
+    STOP,
 };
 
 struct struct_command_t
 {
-    Ms::ScoreState stateBefore;
-    Ms::ScoreState stateAfter;
+    Ms::ViewState stateBefore;
+    Ms::ViewState stateAfter;
     command_type_t command;
     int par1;
     int par2;
@@ -54,7 +53,7 @@ union state_message_t
     {
         quint8 msgLen;
         selection_type_t type;
-        Ms::ScoreState mscoreState;
+        Ms::ViewState mscoreState;
         Ms::SelState selectionState;
         int selectedElements;
     } common_fields;
@@ -115,7 +114,6 @@ private:
     bool _editingChord;
     QMap<QString, Ms::Element*> _paletteItemList;
 
-    bool addSpannerToCurrentSelection(Ms::Spanner* spanner);
     quint8 getNotePitch(Ms::Element *e);
     Ms::AccidentalType getNoteAccident(Ms::Element *e);
     Ms::TDuration::DurationType getDuration(Ms::Element *e);
@@ -129,7 +127,8 @@ private:
     quint8 getVoice(Ms::Element *e);
     int getBPM(Ms::Element *e);
     Ms::Element* findElementBefore(Ms::Element *el, Ms::ElementType type, int staffIdx = -1);
-    Ms::Element* findElementParent(Ms::Element *el, Ms::ElementType type);
+    Ms::Element *searchFromPalette(int paletteType, int cellIdx);
+    void emulateDrop(Ms::Element *e, Ms::Element *target);
     QTimer *_reconnectTimer;
 
 public slots:
