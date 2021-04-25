@@ -117,7 +117,6 @@ void ODLADriver::onIncomingData()
     _museScore->raise();
     _museScore->activateWindow();    
 
-    QAction* playAction = getAction("play");
 
     struct_command_t in;
     QByteArray data = _localSocket->readAll();
@@ -135,23 +134,26 @@ void ODLADriver::onIncomingData()
 
     if (int(in.stateBefore) != -1 && _scoreView->state != in.stateBefore)
     {
-        qDebug() << "change state from" << int(_scoreView->state) << " to " << int(in.stateBefore);
+        if (MScore::debugMode)
+            qDebug() << "change state from" << int(_scoreView->state) << " to " << int(in.stateBefore);
         _scoreView->changeState(in.stateBefore);
         QCoreApplication::processEvents();
     }
 
-    qDebug() << "From ODLA:\n command: " << in.command
-    << "par1: " << in.par1
-    << "par2: " << in.par2
-    << "string: " << in.string
-    << "stateAfter: " << int(in.stateAfter)
-    << "stateBefore: " << int(in.stateBefore)
-    << "size: " << data.size();
+    if (MScore::debugMode)
+        qDebug() << "From ODLA:\n command: " << in.command
+        << "par1: " << in.par1
+        << "par2: " << in.par2
+        << "string: " << in.string
+        << "stateAfter: " << int(in.stateAfter)
+        << "stateBefore: " << int(in.stateBefore)
+        << "size: " << data.size();
 
     switch (in.command)
     {
         case PLAY:
         {
+            QAction* playAction = getAction("play");
             if(playAction->isChecked()) break;
             playAction->trigger();
             playAction->setChecked(true);
@@ -161,6 +163,7 @@ void ODLADriver::onIncomingData()
 
         case STOP:
         {
+            QAction* playAction = getAction("play");
             if(!playAction->isChecked()) break;
             playAction->trigger();
             playAction->setChecked(false);
@@ -171,6 +174,7 @@ void ODLADriver::onIncomingData()
 
         case PAUSE:
         {
+            QAction* playAction = getAction("play");
             if(!playAction->isChecked()) break;
             playAction->trigger();
             playAction->setChecked(false);
