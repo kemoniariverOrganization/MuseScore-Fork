@@ -157,7 +157,8 @@ void ODLADriver::onIncomingData()
             if(playAction->isChecked()) break;
             playAction->trigger();
             playAction->setChecked(true);
-            qDebug() << "Play started/resumed";
+            if (MScore::debugMode)
+                qDebug() << "Play started/resumed";
             break;
         }
 
@@ -167,8 +168,9 @@ void ODLADriver::onIncomingData()
             if(!playAction->isChecked()) break;
             playAction->trigger();
             playAction->setChecked(false);
-            _museScore->cmd(getAction("rewind"));
-            qDebug() << "Play stopped";
+            _scoreView->changeState(ViewState::NOTE_ENTRY);
+            if (MScore::debugMode)
+                qDebug() << "Play stopped";
             break;
         }
 
@@ -178,7 +180,8 @@ void ODLADriver::onIncomingData()
             if(!playAction->isChecked()) break;
             playAction->trigger();
             playAction->setChecked(false);
-            qDebug() << "Play paused";
+            if (MScore::debugMode)
+                qDebug() << "Play paused";
             break;
         }
 
