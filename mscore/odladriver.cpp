@@ -221,6 +221,8 @@ void ODLADriver::onIncomingData()
 
                 default:
                     Palette::applyPaletteElement(element);
+                    if(in.string == "alteration bracket") // this is due to a bad behaviour of Musescore
+                        accBracket();
             }
             break;
         }
@@ -317,25 +319,6 @@ void ODLADriver::onIncomingData()
             break;
         }
 
-        case ALTERATION_BRACKETS:
-        {
-            _currentScore->startCmd();
-            for (Element* el : _currentScore->selection().elements())
-            {
-                if (el->type() == ElementType::NOTE)
-                {
-                    Accidental* acc =  toNote(el)->accidental();
-                    if (acc != nullptr)
-                    {
-                        _currentScore->addRefresh(acc->canvasBoundingRect());
-                        acc->undoChangeProperty(Pid::ACCIDENTAL_BRACKET, int(AccidentalBracket::PARENTHESIS), PropertyFlags::NOSTYLE);
-                    }
-                }
-            }
-            _currentScore->endCmd();
-            break;
-        }
-
         case LINEWVIEW:
         {
             _museScore->switchLayoutMode(LayoutMode::LINE);
@@ -396,6 +379,24 @@ void ODLADriver::onIncomingData()
     }
 
     collectAndSendStatus();
+}
+
+void ODLADriver::accBracket()
+{
+    _currentScore->startCmd();
+    for (Element* el : _currentScore->selection().elements())
+    {
+        if (el->type() == ElementType::NOTE)
+        {
+            Accidental* acc =  toNote(el)->accidental();
+            if (acc != nullptr)
+            {
+                _currentScore->addRefresh(acc->canvasBoundingRect());
+                acc->undoChangeProperty(Pid::ACCIDENTAL_BRACKET, int(AccidentalBracket::PARENTHESIS), PropertyFlags::NOSTYLE);
+            }
+        }
+    }
+    _currentScore->endCmd();
 }
 
 Element *ODLADriver::searchFromPalette(int paletteType, int cellIdx)

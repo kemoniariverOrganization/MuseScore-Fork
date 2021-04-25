@@ -20,7 +20,6 @@ enum command_type_t: uint8_t
     GOTO,
     SELECT,
     STAFF_PRESSED,
-    ALTERATION_BRACKETS,
     LINEWVIEW,
     PAGEVIEW,
     TEMPO,
@@ -130,6 +129,7 @@ private:
     Ms::Element *searchFromPalette(int paletteType, int cellIdx);
     void emulateDrop(Ms::Element *e, Ms::Element *target);
     QTimer *_reconnectTimer;
+    void accBracket();
 
 public slots:
     void attemptConnection();
