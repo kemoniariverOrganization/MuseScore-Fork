@@ -205,6 +205,7 @@ void ODLADriver::onIncomingData()
                 case ElementType::MARKER:   // marker and jump elements
                 case ElementType::JUMP:     // cannot be insert by clicking
                 case ElementType::KEYSIG:     // cannot be insert by clicking
+                case ElementType::TIMESIG:     // cannot be insert by clicking
                     emulateDrop(element, _currentScore->inputState().cr()->measure());
                     break;
 
