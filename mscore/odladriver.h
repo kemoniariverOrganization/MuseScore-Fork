@@ -27,6 +27,7 @@ enum command_type_t: uint8_t
     PLAY,
     PAUSE,
     STOP,
+    TIMESIGNATURE,
 };
 
 struct struct_command_t

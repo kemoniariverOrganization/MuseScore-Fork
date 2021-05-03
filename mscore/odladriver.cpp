@@ -204,10 +204,9 @@ void ODLADriver::onIncomingData()
             {
                 case ElementType::MARKER:   // marker and jump elements
                 case ElementType::JUMP:     // cannot be insert by clicking
-                case ElementType::KEYSIG:     // cannot be insert by clicking
-                case ElementType::TIMESIG:     // cannot be insert by clicking
+                case ElementType::KEYSIG:     // cannot be insert by clicking                 
                     emulateDrop(element, _currentScore->inputState().cr()->measure());
-                    break;
+                    break;                
 
                 case ElementType::TEMPO_TEXT:
                 {
@@ -379,6 +378,15 @@ void ODLADriver::onIncomingData()
         case METRNOME:
         {
             getAction("metronome")->setChecked(in.par1 != 0);
+            break;
+        }
+        case TIMESIGNATURE:
+        {
+            if(!in.par2 || (in.par2 & (in.par2 - 1))) //check if den is power of 2
+                break;
+            TimeSig* ts = new TimeSig(gscore);
+            ts->setSig(Fraction(in.par1, in.par2), TimeSigType::NORMAL);
+            emulateDrop(ts, _currentScore->inputState().cr()->measure());
             break;
         }
     }
