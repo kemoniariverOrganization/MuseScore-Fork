@@ -187,6 +187,7 @@ void ODLADriver::onIncomingData()
 
         case PALETTE:
         {
+            if( _currentScore->selection().state() == SelState::NONE) break;
             auto element = searchFromPalette(in.par1, in.par2);
             if(element == nullptr) break;
 
@@ -410,7 +411,7 @@ Element *ODLADriver::searchFromPalette(int paletteType, int cellIdx)
     auto tree = pw->masterPaletteModel()->paletteTree();
     for (auto& p : tree->palettes)
         if(int(p->type()) == paletteType)
-            return cellIdx < p->ncells() ? p->cell(cellIdx)->element.get() : nullptr;
+            return cellIdx < p->ncells() ? p->cell(cellIdx)->element.get()->clone() : nullptr;
     return nullptr;
 }
 
