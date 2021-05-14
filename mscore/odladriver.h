@@ -33,7 +33,6 @@ enum command_type_t: uint8_t
 struct struct_command_t
 {
     Ms::ViewState stateBefore;
-    Ms::ViewState stateAfter;
     command_type_t command;
     int par1;
     int par2;
@@ -118,15 +117,12 @@ private:
     Ms::AccidentalType getNoteAccident(Ms::Element *e);
     Ms::TDuration::DurationType getDuration(Ms::Element *e);
     quint8 getDots(Ms::Element *e);
-    int getMeasureNumber(Ms::Element *e);
-    quint8 getBeat(Ms::Element *e);
-    quint8 getStaff(Ms::Element *e);
+    void getMeasureAndBeat(Ms::Element *e, int *bar, int *beat);
     Ms::ClefType getClef(Ms::Element *e);
     Ms::Fraction getTimeSig(Ms::Element *e);
     Ms::Key getKeySignature(Ms::Element *e);
     quint8 getVoice(Ms::Element *e);
     int getBPM(Ms::Element *e);
-    Ms::Element* findElementBefore(Ms::Element *el, Ms::ElementType type, int staffIdx = -1);
     Ms::Element *searchFromPalette(int paletteType, int cellIdx);
     void emulateDrop(Ms::Element *e, Ms::Element *target);
     QTimer *_reconnectTimer;
