@@ -54,10 +54,8 @@ namespace ODLA {
 QDataStream& operator>>(QDataStream &stream, struct_command_t &m)
 {
     int stateBefore;
-    int stateAfter;
     uint8_t command;
     stream >> stateBefore;  m.stateBefore = static_cast<Ms::ViewState>(stateBefore);
-    stream >> stateAfter;   m.stateAfter = static_cast<Ms::ViewState>(stateAfter);
     stream >> command;      m.command = static_cast<command_type_t>(command);
     stream >> m.par1;
     stream >> m.par2;
@@ -117,17 +115,10 @@ void ODLADriver::onIncomingData()
     _museScore->raise();
     _museScore->activateWindow();    
 
-
     struct_command_t in;
     QByteArray data = _localSocket->readAll();
     QDataStream stream(&data, QIODevice::ReadOnly);
     stream >> in;
-
-//    if (nextStatus != STATE_ALL)
-//    {
-//        _museScore->changeState(nextStatus);
-//        nextStatus = in.stateAfter;
-//    }
 
     if (!_currentScore || !_scoreView)
         return;
@@ -145,7 +136,6 @@ void ODLADriver::onIncomingData()
         << "par1: " << in.par1
         << "par2: " << in.par2
         << "string: " << in.string
-        << "stateAfter: " << int(in.stateAfter)
         << "stateBefore: " << int(in.stateBefore)
         << "size: " << data.size();
 
