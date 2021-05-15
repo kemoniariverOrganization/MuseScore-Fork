@@ -177,11 +177,8 @@ void ODLADriver::onIncomingData()
 
         case MS_SHORTCUT:
         {
-            if(in.string.isEmpty())
-                break;
-            _currentScore->startCmd();
-            getAction(in.string.toUtf8())->trigger();
-            _currentScore->endCmd();
+            if(!in.string.isEmpty())
+                getAction(in.string.toUtf8())->trigger();
             break;
         }
 
@@ -193,12 +190,13 @@ void ODLADriver::onIncomingData()
 
             switch(element->type())
             {
-                case ElementType::MARKER:   // marker and jump elements
-                case ElementType::JUMP:     // cannot be insert by clicking
-                case ElementType::KEYSIG:   // cannot be insert by clicking
-                case ElementType::BAR_LINE: // cannot be insert by clicking
+                case ElementType::MARKER:
+                case ElementType::JUMP:
+                case ElementType::BAR_LINE:
+                case ElementType::TIMESIG:
+                // We drop all this elements at the beginning of the selected element measure
                     emulateDrop(element, _currentScore->inputState().cr()->measure());
-                    break;                
+                    break;
 
                 case ElementType::TEMPO_TEXT:
                 {
@@ -382,6 +380,10 @@ void ODLADriver::onIncomingData()
             break;
         }
     }
+
+    qDebug() << __FUNCTION__ << __LINE__;
+    QCoreApplication::processEvents();
+    qDebug() << __FUNCTION__ << __LINE__;
     collectAndSendStatus();
 }
 
