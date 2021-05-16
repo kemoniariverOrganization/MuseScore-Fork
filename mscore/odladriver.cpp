@@ -193,8 +193,9 @@ void ODLADriver::onIncomingData()
                 case ElementType::MARKER:
                 case ElementType::JUMP:
                 case ElementType::BAR_LINE:
-                case ElementType::TIMESIG:
-                // We drop all this elements at the beginning of the selected element measure
+                case ElementType::KEYSIG:
+                case ElementType::TIMESIG:// it doesn't work beacuse we insert TIMESIG as non palette (see below)
+                    // We drop all this elements at the beginning of the selected element measure
                     emulateDrop(element, _currentScore->inputState().cr()->measure());
                     break;
 
