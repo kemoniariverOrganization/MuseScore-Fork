@@ -196,7 +196,7 @@ void ODLADriver::onIncomingData()
                 case ElementType::KEYSIG:
                 case ElementType::TIMESIG:// it doesn't work beacuse we insert TIMESIG as non palette (see below)
                     // We drop all this elements at the beginning of the selected element measure
-                    emulateDrop(element, _currentScore->inputState().cr()->measure());
+                    emulateDrop(element, _currentScore->inputState().segment()->measure());
                     break;
 
                 case ElementType::TEMPO_TEXT:
@@ -374,7 +374,7 @@ void ODLADriver::onIncomingData()
                 break;
             TimeSig* ts = new TimeSig(gscore);
             ts->setSig(Fraction(in.par1, in.par2), TimeSigType::NORMAL);
-            emulateDrop(ts, _currentScore->inputState().cr()->measure());
+            emulateDrop(ts, _currentScore->inputState().segment()->measure());
             getAction("next-chord")->trigger();
             getAction("prev-chord")->trigger();
             break;
