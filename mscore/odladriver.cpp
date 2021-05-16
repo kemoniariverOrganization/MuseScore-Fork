@@ -261,9 +261,6 @@ void ODLADriver::onIncomingData()
             else
                 measure_to = _currentScore->lastMeasureMM();
 
-            _museScore->changeState(ScoreState::STATE_NOTE_ENTRY);
-
-            _currentScore->deselectAll();
             _currentScore->selectRange(measure_from, 0);
             _currentScore->selectRange(measure_to, _currentScore->nstaves() - 1);
             _currentScore->setUpdateAll();
@@ -427,7 +424,6 @@ void ODLADriver::emulateDrop(Element *e, Element *target)
     target->drop(dropData);
     _currentScore->endCmd();
 }
-
 
 // Send status to Odla
 void ODLADriver::collectAndSendStatus()
