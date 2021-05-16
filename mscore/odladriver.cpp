@@ -377,13 +377,13 @@ void ODLADriver::onIncomingData()
             TimeSig* ts = new TimeSig(gscore);
             ts->setSig(Fraction(in.par1, in.par2), TimeSigType::NORMAL);
             emulateDrop(ts, _currentScore->inputState().cr()->measure());
+            getAction("next-chord")->trigger();
+            getAction("prev-chord")->trigger();
             break;
         }
     }
 
-    qDebug() << __FUNCTION__ << __LINE__;
     QCoreApplication::processEvents();
-    qDebug() << __FUNCTION__ << __LINE__;
     collectAndSendStatus();
 }
 
