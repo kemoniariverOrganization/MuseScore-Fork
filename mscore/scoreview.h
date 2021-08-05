@@ -23,10 +23,6 @@
 #include "libmscore/harmony.h"
 #include "mscore/zoombox.h"
 
-namespace ODLA {
-    class ODLADriver;
-}
-
 namespace Ms {
 
 class ChordRest;
@@ -532,8 +528,6 @@ class ScoreView : public QWidget, public MuseScoreView {
       void changeState(ViewState);
 
       virtual const QRect geometry() const override { return QWidget::geometry(); }
-
-      friend class ODLA::ODLADriver;
 
       void updateGrips();
       bool moveWhenInactive() const { return _moveWhenInactive; }

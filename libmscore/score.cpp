@@ -3702,8 +3702,8 @@ void Score::cmdSelectAll()
       if (!first)
             return;
       Measure* last = lastMeasureMM();
-      selectRange(first, 0);
-      selectRange(last, nstaves() - 1);
+      select(first, SelectType::RANGE, 0);
+      select(last, SelectType::RANGE, nstaves() - 1);
       setUpdateAll();
       update();
       }

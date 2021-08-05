@@ -5,80 +5,12 @@
 #include <QLocalSocket>
 #include <QMap>
 #include "scoreview.h"
-#include "libmscore/spanner.h"
-#include "libmscore/select.h"
-#include <mscore/palette/palettetree.h>
-#include <mscore/palette/paletteworkspace.h>
-
-namespace ODLA {
-
-enum command_type_t: uint8_t
-{
-    MS_SHORTCUT,
-    PALETTE,
-    INSERT_MEASURE,
-    GOTO,
-    SELECT,
-    STAFF_PRESSED,
-    LINEWVIEW,
-    PAGEVIEW,
-    TEMPO,
-    METRNOME,
-    PLAY,
-    PAUSE,
-    STOP,
-    TIMESIGNATURE,
-};
 
 enum selection_type_t: char
 {
     NO_ELEMENT,
     SINGLE_ELEMENT,
     RANGE_ELEMENT,
-};
-
-union state_message_t
-{
-    struct common_fields_t
-    {
-        quint8 msgLen;
-        selection_type_t type;
-        Ms::ViewState mscoreState;
-        Ms::SelState selectionState;
-        int selectedElements;
-    } common_fields;
-
-    struct element_fields_t
-    {
-        struct common_fields_t common_fields;
-        Ms::ElementType elementType;
-        quint8 notePitch;
-        Ms::AccidentalType noteAccident;
-        Ms::TDuration::DurationType duration;
-        quint8 dotsNum;
-        int measureNum;
-        quint8 beat;
-        quint8 staff;
-        Ms::ClefType clef;
-        quint8 timeSignatureNum;
-        quint8 timeSignatureDen;
-        Ms::Key keySignature;
-        quint8 voiceNum;
-        int bpm;
-    } element_fields;
-
-    struct range_fields_t
-    {
-        struct common_fields_t common_fields;
-        int firstMesaure;
-        int lastMesaure;
-        quint8 firstBeat;
-        quint8 lastBeat;
-        quint8 firstStaff;
-        quint8 lastStaff;
-    } range_fields;
-
-    char data[sizeof(element_fields_t)];
 };
 
 /*!
@@ -88,6 +20,23 @@ class ODLADriver : public QObject
 {
     Q_OBJECT
 public:
+    enum SpeechField
+    {
+        NoteName =      1<<0,
+        Accidental =    1<<1,
+        Duration =      1<<2,
+        Dots =          1<<3,
+        Beat =          1<<4,
+        Measure =       1<<5,
+        Staff =         1<<6,
+        TimeSign =       1<<7,
+        Clef =          1<<8,
+        KeySign =        1<<9,
+        Voice =         1<<10,
+        BPM =           1<<11
+    };
+    Q_DECLARE_FLAGS(SpeechFields, SpeechField)
+    Q_FLAG(SpeechFields)
     //friend QDataStream &operator>>(QDataStream &, QMap<QString> &);
 
     static ODLADriver* instance(QObject* parent = nullptr);
@@ -103,7 +52,6 @@ private:
     QTreeWidget * _palette;
     bool _editingChord;
     bool _paused;
-    QMap<QString, Ms::Element*> _paletteItemList;
 
     quint8 getNotePitch(Ms::Element *e);
     Ms::AccidentalType getNoteAccident(Ms::Element *e);
@@ -130,6 +78,5 @@ protected slots:
     void collectAndSendStatus();
 };
 
-} // namespace ODLA
-
+Q_DECLARE_OPERATORS_FOR_FLAGS(ODLADriver::SpeechFields)
 #endif // ODLADRIVER_H

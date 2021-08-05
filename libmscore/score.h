@@ -1252,7 +1252,6 @@ class Score : public QObject, public ScoreElement {
 
       friend class ChangeSynthesizerState;
       friend class Chord;
-      friend class ODLA::ODLADriver;
       };
 
 static inline Score* toScore(ScoreElement* e) {

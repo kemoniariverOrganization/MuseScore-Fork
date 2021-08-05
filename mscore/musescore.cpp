@@ -2020,7 +2020,7 @@ MuseScore::MuseScore()
 
       connect(qApp, &QGuiApplication::focusWindowChanged, this, &MuseScore::onFocusWindowChanged);
 
-      _odlaDriver = ODLA::ODLADriver::instance(this);
+//      _odlaDriver = ODLADriver::instance(this);
       }
 
 MuseScore::~MuseScore()
@@ -2672,8 +2672,8 @@ void MuseScore::setCurrentScoreView(ScoreView* view)
       else
             cs = 0;
 
-      _odlaDriver->setCurrentScore(qobject_cast<MasterScore*>(cs));
-      _odlaDriver->setScoreView(cv);
+      ODLADriver::instance(this)->setCurrentScore(qobject_cast<MasterScore*>(cs));
+      ODLADriver::instance(this)->setScoreView(cv);
       updateWindowTitle(cs);
       setWindowModified(cs ? cs->dirty() : false);
 
