@@ -3,10 +3,10 @@
 
 #include <QObject>
 #include <QLocalSocket>
+#include <QMap>
 #include "scoreview.h"
 #include "libmscore/spanner.h"
 #include "libmscore/select.h"
-#include <QTreeWidgetItem>
 #include <mscore/palette/palettetree.h>
 #include <mscore/palette/paletteworkspace.h>
 
@@ -28,15 +28,6 @@ enum command_type_t: uint8_t
     PAUSE,
     STOP,
     TIMESIGNATURE,
-};
-
-struct struct_command_t
-{
-    Ms::ViewState stateBefore;
-    command_type_t command;
-    int par1;
-    int par2;
-    QString string;
 };
 
 enum selection_type_t: char
@@ -97,7 +88,7 @@ class ODLADriver : public QObject
 {
     Q_OBJECT
 public:
-    friend QDataStream &operator>>(QDataStream &, struct_command_t &);
+    //friend QDataStream &operator>>(QDataStream &, QMap<QString> &);
 
     static ODLADriver* instance(QObject* parent = nullptr);
     void setScoreView(Ms::ScoreView* scoreView) {_scoreView = scoreView;};
@@ -111,6 +102,7 @@ private:
     Ms::ScoreView* _scoreView;
     QTreeWidget * _palette;
     bool _editingChord;
+    bool _paused;
     QMap<QString, Ms::Element*> _paletteItemList;
 
     quint8 getNotePitch(Ms::Element *e);

@@ -51,17 +51,7 @@
 
 namespace ODLA {
 
-QDataStream& operator>>(QDataStream &stream, struct_command_t &m)
-{
-    int stateBefore;
-    uint8_t command;
-    stream >> stateBefore;  m.stateBefore = static_cast<Ms::ViewState>(stateBefore);
-    stream >> command;      m.command = static_cast<command_type_t>(command);
-    stream >> m.par1;
-    stream >> m.par2;
-    stream >> m.string;
-    return stream;
-}
+//QDataStream& operator>>(QDataStream &stream, QMap<QString> &m) { return m;}
 using namespace Ms;
 
 ODLADriver * ODLADriver::_instance;
@@ -79,6 +69,7 @@ ODLADriver::ODLADriver(QObject *parent) : QObject(parent)
     _currentScore = nullptr;
     _scoreView = nullptr;
     _editingChord = false;
+    _paused = false;
 
     _reconnectTimer = new QTimer(this);
     _reconnectTimer->start(2000);
@@ -109,85 +100,70 @@ void ODLADriver::onConnected()
 
 void ODLADriver::onIncomingData()
 {
+    if (!_currentScore || !_scoreView)
+        return;
     // We can't move Musescore cast in odladriver.h in order to avoiding circular include
     Ms::MuseScore* _museScore = qobject_cast<Ms::MuseScore*>(this->parent());
     _museScore->setWindowState( (_museScore->windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
     _museScore->raise();
     _museScore->activateWindow();    
 
-    struct_command_t in;
+    QMap<QString, QString> msg;
     QByteArray data = _localSocket->readAll();
     QDataStream stream(&data, QIODevice::ReadOnly);
-    stream >> in;
+    stream >> msg;
+    qDebug() << "received from ODLA: " << msg;
 
-    if (!_currentScore || !_scoreView)
-        return;
 
-    if (int(in.stateBefore) != -1 && _scoreView->state != in.stateBefore)
+    QString stateBefore = msg["STATE"];
+    QString command = msg["COM"];
+    int par1; bool par1Ok = false;
+    int par2; bool par2Ok = false;
+    par1 = msg["PAR1"].toInt(&par1Ok);
+    par2 = msg["PAR2"].toInt(&par2Ok);
+
+    QAction* playAction = getAction("play");
+
+    if(     playAction->isChecked()
+        &&( command.contains("next-chord")
+        ||  command.contains("prev-chord")
+        ||  command.contains("next-measure")
+        ||  command.contains("prev-measure")))
+        {
+            command.prepend("play-");
+            stateBefore = "NC";
+        }
+
+    if (stateBefore != 0)
     {
-        if (MScore::debugMode)
-            qDebug() << "change state from" << int(_scoreView->state) << " to " << int(in.stateBefore);
-        _scoreView->changeState(in.stateBefore);
+        if(stateBefore == "NORMAL")
+            _scoreView->changeState(ViewState::NORMAL);
+        else if(stateBefore == "NOTE_ENTRY")
+            _scoreView->changeState(ViewState::NOTE_ENTRY);
         QCoreApplication::processEvents();
     }
-
-    if (MScore::debugMode)
-        qDebug() << "From ODLA:\n command: " << in.command
-        << "par1: " << in.par1
-        << "par2: " << in.par2
-        << "string: " << in.string
-        << "stateBefore: " << int(in.stateBefore)
-        << "size: " << data.size();
-
-    switch (in.command)
+    if (command == "play")
     {
-        case PLAY:
-        {
-            QAction* playAction = getAction("play");
-            if(playAction->isChecked()) break;
-            playAction->trigger();
-            playAction->setChecked(true);
-            if (MScore::debugMode)
-                qDebug() << "Play started/resumed";
-            break;
-        }
-
-        case STOP:
-        {
-            QAction* playAction = getAction("play");
-            if(!playAction->isChecked()) break;
-            playAction->trigger();
-            playAction->setChecked(false);
+        if(playAction->isChecked())
             _scoreView->changeState(ViewState::NOTE_ENTRY);
-            if (MScore::debugMode)
-                qDebug() << "Play stopped";
-            break;
-        }
-
-        case PAUSE:
-        {
-            QAction* playAction = getAction("play");
-            if(!playAction->isChecked()) break;
+        else
             playAction->trigger();
-            playAction->setChecked(false);
-            if (MScore::debugMode)
-                qDebug() << "Play paused";
-            break;
-        }
+        _paused = false;
+    }
 
-        case MS_SHORTCUT:
+    else if (command == "pause")
+    {
+        if(playAction->isChecked() || _paused)
         {
-            if(!in.string.isEmpty())
-                getAction(in.string.toUtf8())->trigger();
-            break;
+            playAction->trigger();
+            _paused = !_paused;
         }
-
-        case PALETTE:
+    }
+    else if (command.startsWith("palette") && _currentScore->selection().state() != SelState::NONE)
+    {
+        auto element = searchFromPalette(par1, par2);
+        if(element)
         {
-            if( _currentScore->selection().state() == SelState::NONE) break;
-            auto element = searchFromPalette(in.par1, in.par2);
-            if(element == nullptr) break;
-
             switch(element->type())
             {
                 case ElementType::MARKER:
@@ -203,7 +179,7 @@ void ODLADriver::onIncomingData()
                 {
                     auto tempo = static_cast<TempoText*>(element);
                     bool ok = false;
-                    int bpm = in.string.toInt(&ok);
+                    int bpm = command.toInt(&ok);
                     if(ok)
                     {
                         tempo->setTempo(bpm);
@@ -215,38 +191,32 @@ void ODLADriver::onIncomingData()
 
                 default:
                     Palette::applyPaletteElement(element);
-                    if(in.string == "alteration bracket") // this is due to a bad behaviour of Musescore
+                    if(command.contains("bracket")) // this is due to a bad behaviour of Musescore
                         accBracket();
                     break;
             }
-            break;
         }
+    }
 
-        case INSERT_MEASURE:
+    else if (command == "insert-measures")
+        _scoreView->cmdInsertMeasures(par1, ElementType::MEASURE);
+
+    else if (command == "goto")
+    {
+        int target = par1 > 0 ? par1 : 1;
+        target = target <= _currentScore->nmeasures() ? target : _currentScore->nmeasures();
+        _currentScore->startCmd();
+        _scoreView->searchMeasure(target);
+        _currentScore->endCmd();
+    }
+
+    else if (command == "select-measures")
+    {
+        int from =  par1;
+        int to =    par2;
+
+        if(_scoreView->searchMeasure(from))
         {
-            _scoreView->cmdInsertMeasures(in.par1, ElementType::MEASURE);
-            break;
-        }
-
-        case GOTO:
-        {
-            int target = in.par1 > 0 ? in.par1 : 1;
-            target = target <= _currentScore->nmeasures() ? target : _currentScore->nmeasures();
-            _currentScore->startCmd();
-            _scoreView->searchMeasure(target);
-            _currentScore->endCmd();
-            break;
-        }
-
-        case SELECT:
-        {
-            int from =  in.par1;
-            int to =    in.par2;
-
-            //If we didn't insert an existing start measure break from command
-            if(!_scoreView->searchMeasure(from))
-                break;
-
             Measure* measure_from = _currentScore->firstMeasureMM();
 
             for(int i = 1; i < from; i++)
@@ -268,117 +238,126 @@ void ODLADriver::onIncomingData()
 
             if (MScore::debugMode)
                 qDebug() << "selecting from " << from << "to " << to;
-            break;
         }
+    }
 
-        // put note
-        case STAFF_PRESSED:
+    else if (command == "staff-pressed") // put note
+    {
+        int line = par1;
+        // check chord option
+        bool keepchord = (par2 & 1);
+        bool slur = (par2 & 2);
+        // disable slur
+        if (!slur)
+            _currentScore->inputState().setSlur(nullptr);
+
+        Segment* segment = _currentScore->inputState().segment();
+        if (segment != nullptr)
         {
-            int line = in.par1;
-            // check chord option
-            bool keepchord = (in.par2 & 1);
-            bool slur = (in.par2 & 2);
-            // disable slur
-            if (!slur)
-                _currentScore->inputState().setSlur(nullptr);
-
-            Segment* segment = _currentScore->inputState().segment();
-            if (segment != nullptr)
-            {
-                Fraction tick = _currentScore->inputState().tick();
-                Staff* currentStaff = _currentScore->staff(_currentScore->inputState().track() / VOICES);
-                ClefType clef = currentStaff->clef(tick);
-
-                _currentScore->startCmd();
-                if (_editingChord == false && keepchord &&
-                        (_currentScore->inputState().segment() !=
-                        _currentScore->inputState().lastSegment()))
-                {
-                    // move to next position and start editing a new chord
-                    _scoreView->cmd(getAction("next-chord"));
-                }
-                _currentScore->cmdAddPitch(relStep(line, clef), keepchord, false);
-                _currentScore->endCmd();
-
-                // reset flag when ODLA's Chord key is released
-                _editingChord = keepchord;
-
-                // add slur if not already slurring...
-                if (slur && _currentScore->inputState().slur() == nullptr)
-                    _scoreView->cmd(getAction("add-slur"));
-
-            }
-            break;
-        }
-
-        case LINEWVIEW:
-        {
-            _museScore->switchLayoutMode(LayoutMode::LINE);
-            break;
-        }
-
-        case PAGEVIEW:
-        {
-            _museScore->switchLayoutMode(LayoutMode::PAGE);
-            break;
-        }
-
-        case TEMPO:
-        {
-            int bpm = in.par1;
-
-            // pattern, ratio, relative, followtext
-            QString pattern;
-
-            if (in.string.compare("TEXT_1") == 0)
-                { pattern = "<sym>metNoteHalfUp</sym> = %1"; }
-            else if (in.string.compare("TEXT_2") == 0)
-                { pattern = "<sym>metNoteQuarterUp</sym> = %1";}
-            else if (in.string.compare("TEXT_3") == 0)
-                { pattern = "<sym>metNote8thUp</sym> = %1"; }
-            else if (in.string.compare("TEXT_4") == 0)
-                { pattern = "<sym>metNoteHalfUp</sym><sym>space</sym><sym>metAugmentationDot</sym> = %1";}
-            else if (in.string.compare("TEXT_5") == 0)
-                { pattern = "<sym>metNoteQuarterUp</sym><sym>space</sym><sym>metAugmentationDot</sym> = %1";}
-            else if (in.string.compare("TEXT_6") == 0)
-                { pattern = "<sym>metNote8thUp</sym><sym>space</sym><sym>metAugmentationDot</sym> = %1";}
-            else break;
-
-            pattern = pattern.arg(bpm);
-
-            TempoText* tempoText = static_cast<TempoText*>(Element::create(ElementType::TEMPO_TEXT, _currentScore));
-            tempoText->setScore(_currentScore);
-            tempoText->setTrack(_currentScore->inputTrack());
-            tempoText->setParent(_currentScore->inputState().segment());
-            tempoText->setXmlText(pattern);
-            tempoText->setFollowText(true);
-
-            tempoText->setTempo(bpm);
+            Fraction tick = _currentScore->inputState().tick();
+            Staff* currentStaff = _currentScore->staff(_currentScore->inputState().track() / VOICES);
+            ClefType clef = currentStaff->clef(tick);
 
             _currentScore->startCmd();
-            _currentScore->undoAddElement(tempoText);
-            tempoText->undoSetTempo(bpm);
-            tempoText->undoSetFollowText(true);
+            if (_editingChord == false && keepchord &&
+                    (_currentScore->inputState().segment() !=
+                    _currentScore->inputState().lastSegment()))
+            {
+                // move to next position and start editing a new chord
+                _scoreView->cmd(getAction("next-chord"));
+            }
+            _currentScore->cmdAddPitch(relStep(line, clef), keepchord, false);
             _currentScore->endCmd();
-            break;
+
+            // reset flag when ODLA's Chord key is released
+            _editingChord = keepchord;
+
+            // add slur if not already slurring...
+            if (slur && _currentScore->inputState().slur() == nullptr)
+                _scoreView->cmd(getAction("add-slur"));
+        }
+    }
+
+    else if (command == "line-view")
+        _museScore->switchLayoutMode(LayoutMode::LINE);
+
+    else if (command == "page-view")
+        _museScore->switchLayoutMode(LayoutMode::PAGE);
+
+    else if (command == "tempo")
+    {
+        int type = par1;
+        int bpm = par2;
+
+        // pattern, ratio, relative, followtext
+        QString pattern;
+
+        switch (type)
+        {
+            case 0:
+                pattern = "<sym>metNoteHalfUp</sym> = %1";
+                break;
+            case 1:
+                pattern = "<sym>metNoteQuarterUp</sym> = %1";
+                break;
+            case 2:
+                pattern = "<sym>metNote8thUp</sym> = %1";
+                break;
+            case 3:
+                pattern = "<sym>metNoteHalfUp</sym><sym>space</sym><sym>metAugmentationDot</sym> = %1";
+                break;
+            case 4:
+                pattern = "<sym>metNoteQuarterUp</sym><sym>space</sym><sym>metAugmentationDot</sym> = %1";
+                break;
+            case 5:
+                pattern = "<sym>metNote8thUp</sym><sym>space</sym><sym>metAugmentationDot</sym> = %1";
+                break;
         }
 
-        case METRNOME:
+        pattern = pattern.arg(bpm);
+
+        TempoText* tempoText = static_cast<TempoText*>(Element::create(ElementType::TEMPO_TEXT, _currentScore));
+        tempoText->setScore(_currentScore);
+        tempoText->setTrack(_currentScore->inputTrack());
+        tempoText->setParent(_currentScore->inputState().segment());
+        tempoText->setXmlText(pattern);
+        tempoText->setFollowText(true);
+
+        tempoText->setTempo(bpm);
+
+        _currentScore->startCmd();
+        _currentScore->undoAddElement(tempoText);
+        tempoText->undoSetTempo(bpm);
+        tempoText->undoSetFollowText(true);
+        _currentScore->endCmd();
+    }
+
+    else if (command == "metronome")
+    {
+        auto action = getAction("metronome");
+        if (action)
+                action->toggle();
+    }
+
+    else if (command == "time-signature")
+    {
+        bool pw2 = par2 && !(par2 & (par2 - 1));
+        if(pw2 && par1) //check if den is power of 2
         {
-            getAction("metronome")->setChecked(in.par1 != 0);
-            break;
-        }
-        case TIMESIGNATURE:
-        {
-            if(!in.par2 || (in.par2 & (in.par2 - 1))) //check if den is power of 2
-                break;
             TimeSig* ts = new TimeSig(gscore);
-            ts->setSig(Fraction(in.par1, in.par2), TimeSigType::NORMAL);
+            ts->setSig(Fraction(par1, par2), TimeSigType::NORMAL);
             emulateDrop(ts, _currentScore->inputState().segment()->measure());
             getAction("next-chord")->trigger();
             getAction("prev-chord")->trigger();
-            break;
         }
+    }
+
+    else if(!command.isEmpty())
+    {
+        auto action = getAction(command.toUtf8());
+        if(action)
+            action->trigger();
+        else return;
     }
 
     QCoreApplication::processEvents();
@@ -500,6 +479,7 @@ quint8 ODLADriver::getNotePitch(Element *e)
     if (e->type() != ElementType::NOTE)
         return 0xFF; //TODO: is 0xFF invalid?
     Note* n = static_cast<Ms::Note*>(e);
+    qDebug() << "n->tpcUserName()" << n->tpcUserName();
     return n->pitch();
 }
 
