@@ -22,18 +22,16 @@ class ODLADriver : public QObject
 public:
     enum SpeechField
     {
-        NoteName =      1<<0,
-        Accidental =    1<<1,
-        Duration =      1<<2,
-        Dots =          1<<3,
-        Beat =          1<<4,
-        Measure =       1<<5,
-        Staff =         1<<6,
-        TimeSign =       1<<7,
-        Clef =          1<<8,
-        KeySign =        1<<9,
-        Voice =         1<<10,
-        BPM =           1<<11
+        NoteName        =   1<<0,
+        DurationName    =   1<<1,
+        BeatNumber      =   1<<2,
+        MeasureNumber   =   1<<3,
+        StaffNumber     =   1<<4,
+        TimeSignFraction=   1<<5,
+        ClefName        =   1<<6,
+        KeySignName     =   1<<7,
+        VoiceNumber     =   1<<8,
+        BPMNumber       =   1<<9
     };
     Q_DECLARE_FLAGS(SpeechFields, SpeechField)
     Q_FLAG(SpeechFields)
@@ -53,16 +51,15 @@ private:
     bool _editingChord;
     bool _paused;
 
-    quint8 getNotePitch(Ms::Element *e);
-    Ms::AccidentalType getNoteAccident(Ms::Element *e);
-    Ms::TDuration::DurationType getDuration(Ms::Element *e);
-    quint8 getDots(Ms::Element *e);
-    void getMeasureAndBeat(Ms::Element *e, int *bar, int *beat);
-    Ms::ClefType getClef(Ms::Element *e);
-    Ms::Fraction getTimeSig(Ms::Element *e);
-    Ms::Key getKeySignature(Ms::Element *e);
-    quint8 getVoice(Ms::Element *e);
-    int getBPM(Ms::Element *e);
+    QString getNoteName(Ms::Element *e);
+    QString getDuration(Ms::Element *e);
+    void getMeasureAndBeat(Ms::Element *e, QString &barString, QString &beatString);
+    QString getClef(Ms::Element *e);
+    QString getTimeSig(Ms::Element *e);
+    QString getKeySignature(Ms::Element *e);
+    QString getVoice(Ms::Element *e);
+    QString getBPM(Ms::Element *e);
+    QString getStaff(Ms::Element *e);
     Ms::Element *searchFromPalette(int paletteType, int cellIdx);
     void emulateDrop(Ms::Element *e, Ms::Element *target);
     QTimer *_reconnectTimer;
@@ -75,7 +72,7 @@ public slots:
 protected slots:
     void onConnected();
     void onIncomingData();
-    void collectAndSendStatus();
+    QMap<QString, QString> speechFeedback(ODLADriver::SpeechFields flags);
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(ODLADriver::SpeechFields)

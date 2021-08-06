@@ -14,7 +14,9 @@
 #include "libmscore/rest.h"
 #include "libmscore/chord.h"
 #include "libmscore/accidental.h"
-
+#include "libmscore/keysig.h"
+#include "libmscore/part.h"
+#include "scoreaccessibility.h"
 
 
 //QDataStream& operator>>(QDataStream &stream, QMap<QString> &m) { return m;}
@@ -76,19 +78,19 @@ void ODLADriver::onIncomingData()
     _museScore->raise();
     _museScore->activateWindow();    
 
-    QMap<QString, QString> msg;
+    QMap<QString, QString> inMessage;
     QByteArray data = _localSocket->readAll();
     QDataStream stream(&data, QIODevice::ReadOnly);
-    stream >> msg;
-    qDebug() << "received from ODLA: " << msg;
+    stream >> inMessage;
+    qDebug() << "received from ODLA: " << inMessage;
 
 
-    QString stateBefore = msg["STATE"];
-    QString command = msg["COM"];
+    QString stateBefore = inMessage["STATE"];
+    QString command = inMessage["COM"];
     int par1; bool par1Ok = false;
     int par2; bool par2Ok = false;
-    par1 = msg["PAR1"].toInt(&par1Ok);
-    par2 = msg["PAR2"].toInt(&par2Ok);
+    par1 = inMessage["PAR1"].toInt(&par1Ok);
+    par2 = inMessage["PAR2"].toInt(&par2Ok);
 
     QAction* playAction = getAction("play");
 
@@ -329,7 +331,17 @@ void ODLADriver::onIncomingData()
     }
 
     QCoreApplication::processEvents();
-    collectAndSendStatus();
+    if(inMessage["SpeechFlags"] != "0")
+    {
+        QByteArray outData;
+        QDataStream outStream(&outData, QIODevice::WriteOnly);
+        outStream << speechFeedback(static_cast<SpeechFields>(inMessage["SpeechFlags"].toUInt()));
+        if (_localSocket && (_localSocket->state() == QLocalSocket::ConnectedState))
+        {
+            _localSocket->write(outData);
+            _localSocket->flush();
+        }
+    }
 }
 
 void ODLADriver::accBracket()
@@ -373,170 +385,146 @@ void ODLADriver::emulateDrop(Element *e, Element *target)
 }
 
 // Send status to Odla
-void ODLADriver::collectAndSendStatus()
+QMap<QString, QString> ODLADriver::speechFeedback(ODLADriver::SpeechFields flags)
 {
-//    // After execute command send an update status to ODLA
-//    union state_message_t status_message;
-//    Selection sel = _currentScore->selection();
+    qDebug() << flags;
+    QMap<QString, QString> retVal;
+    if(_currentScore->selection().isSingle()) //if we have only an element selected
+    {
+        Element* e = _currentScore->selection().element();
+        if(e == nullptr)
+            return retVal;
 
-//    int len = status_message.common_fields.msgLen  = sizeof(state_message_t::common_fields_t);
-//    status_message.common_fields.type = NO_ELEMENT;                         // type (0 for status reply) TODO: craete protocol
-//    status_message.common_fields.mscoreState = _scoreView->state;// state of input
-//    status_message.common_fields.selectionState = sel.state();             // type of selection
-//    status_message.common_fields.selectedElements = sel.elements().size(); // number of elements selected
+        if(flags.testFlag(NoteName))
+            retVal["NOT"] = getNoteName(e);
 
-//    if(sel.isSingle()) //if we have only an element selected
-//    {
-//        Element* e = sel.element();
-//        if(e == nullptr) return;
-//        int bar = 0, beat = 0, num = 0, den = 0;
-//        getMeasureAndBeat(e, &bar, &beat);
-//        auto ts = getTimeSig(e);
-//        if(ts.isValid())
-//        {
-//            num = ts.numerator();
-//            den = ts.denominator();
-//        }
-//        len = status_message.common_fields.msgLen  = sizeof(state_message_t::element_fields_t);
-//        status_message.common_fields.type = SINGLE_ELEMENT;
-//        status_message.element_fields.elementType   = e->type();                    // Byte 4: type of selection
-//        status_message.element_fields.notePitch     = getNotePitch(e);               // Byte 5: pitch of note selected
-//        status_message.element_fields.noteAccident  = getNoteAccident(e);            // Byte 6: accidents of note selected
-//        status_message.element_fields.duration      = getDuration(e);                // Byte 7: duration of element selected
-//        status_message.element_fields.dotsNum       = getDots(e);                    // Byte 8: dots of element selected
-//        status_message.element_fields.measureNum    = bar + 1;                     // Byte 9: measure number LSB of element selected
-//        status_message.element_fields.beat          = beat + 1;                    // Byte 11: beat of element selected
-//        status_message.element_fields.staff         = e->staffIdx() + 1;                   // Byte 12: staff of element selected
-//        status_message.element_fields.clef          = getClef(e);                    // Byte 13: clef of element selected
-//        status_message.element_fields.timeSignatureNum = num;     // Byte 14: numerator of time signature of element selected
-//        status_message.element_fields.timeSignatureDen = den;   // Byte 15: denominator of time signature of element selected
-//        status_message.element_fields.keySignature  = getKeySignature(e);            // Byte 16: keysignature of element selected
-//        status_message.element_fields.voiceNum      = getVoice(e);                   // Byte 17: voice of element selected
-//        status_message.element_fields.bpm           = getBPM(e);                       // Byte 19: bpm number LSB of element selected
-//    }
-//    else if(sel.isRange()) //if we have more than an element selected
-//    {
-//        Segment* startSegment = sel.startSegment();
-//        if(startSegment == nullptr) return;
-//        Segment* endSegment = sel.endSegment() ? sel.endSegment()->prev1MM() : _currentScore->lastSegment();
-//        if(endSegment == nullptr) return;
-//        int startBar, startBeat, endBar, endBeat;
-//        getMeasureAndBeat(startSegment, &startBar, &startBeat);
-//        getMeasureAndBeat(endSegment, &endBar, &endBeat);
+        if(flags.testFlag(DurationName))
+            retVal["DUR"] = getDuration(e);
 
-//        len = status_message.common_fields.msgLen    = sizeof(state_message_t::range_fields_t);
-//        status_message.common_fields.type = RANGE_ELEMENT;
-//        status_message.range_fields.firstMesaure    = startBar + 1;
-//        status_message.range_fields.lastMesaure     = endBar + 1;
-//        status_message.range_fields.firstBeat       = startBeat + 1;
-//        status_message.range_fields.lastBeat        = endBeat + 1;
-//        status_message.range_fields.firstStaff      = sel.elements().first()->staffIdx() + 1;
-//        status_message.range_fields.lastStaff       = sel.elements().last()->staffIdx() + 1;
-//    }
+        QString measure, beat;
+        getMeasureAndBeat(e,measure, beat);
 
-//    int written = _localSocket->write(QByteArray(status_message.data, len));
-//    _localSocket->flush();
+        if(flags.testFlag(MeasureNumber))
+            retVal["MEA"] = measure;
 
-//    if (written < 0)
-//        qDebug() << "ODLA driver: could not reply to play status request.";
+        if(flags.testFlag(BeatNumber))
+            retVal["BEA"] = beat;
+
+        if(flags.testFlag(StaffNumber))
+            retVal["STA"] = getStaff(e);
+
+        if(flags.testFlag(TimeSignFraction))
+            retVal["TIM"] = getTimeSig(e);
+
+        if(flags.testFlag(ClefName))
+            retVal["CLE"] = getClef(e);
+
+        if(flags.testFlag(KeySignName))
+            retVal["KEY"] = getKeySignature(e);
+
+        if(flags.testFlag(VoiceNumber))
+            retVal["VOI"] = getVoice(e);
+
+        if(flags.testFlag(BPMNumber))
+            retVal["BPM"] = getBPM(e);
+    }
+    else if(_currentScore->selection().isRange()) //if we have more than an element selected
+    {
+
+        Segment* startSegment = _currentScore->selection().startSegment();
+        if(startSegment == nullptr) return retVal;
+        Segment* endSegment = _currentScore->selection().endSegment() ? _currentScore->selection().endSegment()->prev1MM() : _currentScore->lastSegment();
+        if(endSegment == nullptr) return retVal;
+        QString startBar, startBeat, endBar, endBeat;
+        getMeasureAndBeat(startSegment, startBar, startBeat);
+        getMeasureAndBeat(endSegment, endBar, endBeat);
+
+        QStringList ret;
+        ret << getStaff(startSegment)
+            << startBar
+            << startBeat
+            << getStaff(endSegment)
+            << startBar
+            << startBeat;
+    }
+    return retVal;
 }
 
 // Get tone of note
-quint8 ODLADriver::getNotePitch(Element *e)
+QString ODLADriver::getNoteName(Element *e)
 {
-    if (e->type() != ElementType::NOTE)
-        return 0xFF; //TODO: is 0xFF invalid?
-    Note* n = static_cast<Ms::Note*>(e);
-    qDebug() << "n->tpcUserName()" << n->tpcUserName();
-    return n->pitch();
-}
-
-// Get alteration of note
-AccidentalType ODLADriver::getNoteAccident(Element *e)
-{
-    if (e->type() != ElementType::NOTE)
-        return AccidentalType::NONE; //should be INVALID, but there isn't in enum
-    Note* n = static_cast<Ms::Note*>(e);
-    return n->accidentalType();
+    QString retVal;
+    if (e->type() == ElementType::NOTE)
+        retVal = static_cast<Ms::Note*>(e)->tpcUserName(true);
+    else/* if (e->type() == ElementType::REST)*/
+        retVal = "rest";
+    return retVal;
 }
 
 // Get duration if element is a chord or a rest
-TDuration::DurationType ODLADriver::getDuration(Ms::Element* e)
+QString ODLADriver::getDuration(Ms::Element* e)
 {
-    TDuration::DurationType returnType = TDuration::DurationType::V_INVALID;
-    if(e->type() == ElementType::NOTE || e->type() == ElementType::REST)
-    {
-        if(e->type() == ElementType::NOTE)
-        {
-            Ms::Chord* n = static_cast<Ms::Chord*>(e->parent());
-            returnType = n->durationType().type();
-        }
-        else if(e->type() == ElementType::REST)
-        {
-            Ms::Rest* n = static_cast<Ms::Rest*>(e);
-            returnType = n->durationType().type();
-        }
-    }
-    return returnType;
-}
-
-// Get duration if element is a chord or a rest
-quint8 ODLADriver::getDots(Element *e)
-{
-    if(e->type() == ElementType::NOTE || e->type() == ElementType::REST)
-    {
-        if(e->type() == ElementType::NOTE)
-        {
-            Ms::Chord* n = static_cast<Ms::Chord*>(e->parent());
-            return n->durationType().dots();
-        }
-        else if(e->type() == ElementType::REST)
-        {
-            Ms::Rest* n = static_cast<Ms::Rest*>(e);
-            return n->durationType().dots();
-        }
-    }
-    return -1;
+    QString retVal;
+    if(e->parent()->type() == ElementType::CHORD)
+        return static_cast<Ms::ChordRest*>(e->parent())->durationUserName();
+    else if(e->type() == ElementType::REST)
+        return static_cast<Ms::ChordRest*>(e)->durationUserName();
+    return "";
 }
 
 // Get beat of an element in a measure
-void ODLADriver::getMeasureAndBeat(Ms::Element *e, int *bar, int *beat)
+void ODLADriver::getMeasureAndBeat(Ms::Element *e, QString &measureString, QString &beatString)
 {
+    int bar, beat, dontCare;
     Segment* seg = static_cast<Segment*>(e->findAncestor(ElementType::SEGMENT));
-    if(seg == nullptr) { *bar = *beat = 0; return;}
-    int dummy = 0;
+    if(seg == nullptr)
+        return;
     TimeSigMap* tsm = e->score()->sigmap();
-    tsm->tickValues(seg->tick().ticks(), bar, beat, &dummy);
+    tsm->tickValues(seg->tick().ticks(), &bar, &beat, &dontCare);
+    measureString = qApp->translate("Ms::ScoreAccessibility", "Measure: %1").arg(QString::number(bar + 1));
+    beatString = qApp->translate("Ms::ScoreAccessibility", "Beat: %1").arg(QString::number(beat + 1));
 }
 
 // Get the clef of the context of element
-ClefType ODLADriver::getClef(Element *e)
+QString ODLADriver::getClef(Element *e)
 {
-    return _currentScore->staff(e->staffIdx())->clef(e->tick());
+    return qApp->translate("clefTable", ClefInfo::name(_currentScore->staff(e->staffIdx())->clef(e->tick())));
 }
 
 // Get the time signature of the context of element
-Fraction ODLADriver::getTimeSig(Element *e)
+QString ODLADriver::getTimeSig(Element *e)
 {
-    return _currentScore->staff(e->staffIdx())->timeSig(e->tick())->sig();
+    auto ts = _currentScore->staff(e->staffIdx())->timeSig(e->tick())->sig();
+    return QString("%1/%2").arg(ts.numerator()).arg(ts.denominator());
 }
 
 // Get the Staff Key of the element
-Key ODLADriver::getKeySignature(Element *e)
+QString ODLADriver::getKeySignature(Element *e)
 {
-    return _currentScore->staff(e->staffIdx())->keySigEvent(e->tick()).key();
+    QString retVal;
+    auto k = _currentScore->staff(e->staffIdx())->keySigEvent(e->tick());//.key();
+    auto ks = new KeySig(_currentScore);
+    ks->setKeySigEvent(k);
+    return ks->accessibleInfo().split(": ").last();
 }
 
 // Get the voice in which rest o note is placed
-quint8 ODLADriver::getVoice(Element *e)
+QString ODLADriver::getVoice(Element *e)
 {
-    return e->voice() + 1;
+    return QString::number(e->voice() + 1);
 }
 
 // Get the BPM setted before element
-int ODLADriver::getBPM(Element *e)
+QString ODLADriver::getBPM(Element *e)
 {
-    return _currentScore->tempo(e->tick()) * 60;
+    return QString::number(_currentScore->tempo(e->tick()) * 60);
+}
+
+QString ODLADriver::getStaff(Element *e)
+{
+    QString retVal = qApp->translate("Ms::ScoreAccessibility", "Staff: %1").arg(QString::number(e->staffIdx() + 1));
+    retVal += " " + e->staff()->part()->longName(e->tick());
+    return retVal;
 }
 
 /*!

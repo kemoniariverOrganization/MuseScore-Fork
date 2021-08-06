@@ -811,7 +811,9 @@ int Note::tpc() const
 
 QString Note::tpcUserName(const int tpc, const int pitch, const bool explicitAccidental)
       {
-      const auto pitchStr = qApp->translate("InspectorAmbitus", tpc2name(tpc, NoteSpellingType::STANDARD, NoteCaseType::AUTO, explicitAccidental).replace("b", "♭").replace("#", "♯").toUtf8().constData());
+      auto pitchStr = tpc2name(tpc, NoteSpellingType::STANDARD, NoteCaseType::AUTO, explicitAccidental);
+      if(!explicitAccidental)
+        pitchStr.replace("b", "♭").replace("#", "♯");
       const auto octaveStr = QString::number(((pitch - static_cast<int>(tpc2alter(tpc))) / PITCH_DELTA_OCTAVE) - 1);
 
       return pitchStr + (explicitAccidental ? " " : "") + octaveStr;

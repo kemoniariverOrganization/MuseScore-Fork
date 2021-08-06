@@ -234,6 +234,7 @@ QString tpc2name(int tpc, NoteSpellingType noteSpelling, NoteCaseType noteCase, 
       QString s;
       QString acc;
       tpc2name(tpc, noteSpelling, noteCase, s, acc, explicitAccidental);
+      s = qApp->translate("InspectorAmbitus", s.toUtf8().constData());
       return s + (explicitAccidental ? " " : "") + acc;
       }
 
