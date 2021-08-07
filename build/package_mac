@@ -1,4 +1,5 @@
 #!/bin/bash
+export PATH=".:${PATH}:${HOME}/Qt/5.15.2/clang_64/bin"
 
 APPNAME=mscore
 LONG_NAME="MuseScore"
@@ -28,7 +29,8 @@ WORKING_DIRECTORY=applebuild
 BACKGROUND=build/packaging/musescore-dmg-background.tiff
 APP_PATH=applebuild/${APPNAME}.app
 
-VOLNAME=${LONG_NAME}-${VERSION}
+#${LONG_NAME}-${VERSION}
+VOLNAME=Odla-1.3.0
 DMGNAME=${VOLNAME}Uncompressed.dmg
 COMPRESSEDDMGNAME=${VOLNAME}.dmg
 
@@ -49,7 +51,7 @@ function set_bundle_display_options() {
             delay 1 -- sync
             set icon size of the icon view options of container window to 128
             set arrangement of the icon view options of container window to not arranged
-            set position of item "${LONGER_NAME}.app" to {400,110}
+            set position of item "ODLA" to {400,110}
             close
             set position of item "Applications" to {150,110}
             open
@@ -73,7 +75,7 @@ function change_rpath() {
          if [[ "$P" == *Qt* ]]
          then
             PSLASH=$(echo $P | sed 's,@rpath,@loader_path/../Frameworks,g')
-            FNAME=$(echo $P | sed "s,@rpath,${VOLUME}/${APPNAME}.app/Contents/Frameworks,g")
+            FNAME=$(echo $P | sed "s,@rpath,${VOLUME}/ODLA/${APPNAME}.app/Contents/Frameworks,g")
             install_name_tool -change $P $PSLASH $1
             for P1 in `otool -L $FNAME | awk '{print $1}'`
             do
@@ -85,7 +87,7 @@ function change_rpath() {
             done
          else
             PSLASH=$(echo $P | sed 's,@rpath,@executable_path/../Frameworks,g')
-            FNAME=$(echo $P | sed "s,@rpath,${VOLUME}/${APPNAME}.app/Contents/Frameworks,g")
+            FNAME=$(echo $P | sed "s,@rpath,${VOLUME}/ODLA/${APPNAME}.app/Contents/Frameworks,g")
             install_name_tool -change $P $PSLASH $1
          fi
       fi
@@ -98,7 +100,7 @@ function change_rpath_QWebEngine() {
       if [[ "$P" == *@rpath* ]]
       then
          PSLASH=$(echo $P | sed 's,@rpath,@loader_path/../../../../../../..,g')
-         FNAME=$(echo $P | sed "s,@rpath,${VOLUME}/${APPNAME}.app/Contents/Frameworks,g")
+         FNAME=$(echo $P | sed "s,@rpath,${VOLUME}/ODLA/${APPNAME}.app/Contents/Frameworks,g")
          install_name_tool -change $P $PSLASH $1
       fi
    done
@@ -119,48 +121,51 @@ DEV=$(echo $DEVS | cut -f 1 -d ' ')
 VOLUME=$(mount |grep ${DEV} | cut -f 3 -d ' ')
 
 # copy in the application bundle
-cp -Rp ${APP_PATH} ${VOLUME}/${APPNAME}.app
+mkdir ${VOLUME}/ODLA
+cp -Rp ${APP_PATH} ${VOLUME}/ODLA/${APPNAME}.app
+cp -Rp applebuild/Odla.app ${VOLUME}/ODLA/Odla.app
 
 # delete unused stuff
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/PlugIns/mediaservice
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/PlugIns/audio
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/PlugIns/sqldrivers
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/PlugIns/mediaservice
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/PlugIns/audio
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/PlugIns/sqldrivers
 
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Frameworks/Enginio.*
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Frameworks/QtBluetooth.*
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Frameworks/QtNfc.*
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Frameworks/QtLocation.*
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Frameworks/QtPurchasing.*
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Frameworks/QtQuickParticles.*
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Frameworks/Enginio.*
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Frameworks/QtBluetooth.*
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Frameworks/QtNfc.*
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Frameworks/QtLocation.*
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Frameworks/QtPurchasing.*
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Frameworks/QtQuickParticles.*
 
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Resources/qml/Enginio
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Resources/qml/QtBluetooth
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Resources/qml/QtNfc
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Resources/qml/QtLocation
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Resources/qml/QtPositioning
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Resources/qml/QtPurchasing
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Resources/qml/QtQuick/Particles*
-rm -rf ${VOLUME}/${APPNAME}.app/Contents/Resources/qml/Qt/WebSockets
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Resources/qml/Enginio
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Resources/qml/QtBluetooth
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Resources/qml/QtNfc
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Resources/qml/QtLocation
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Resources/qml/QtPositioning
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Resources/qml/QtPurchasing
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Resources/qml/QtQuick/Particles*
+rm -rf ${VOLUME}/ODLA/${APPNAME}.app/Contents/Resources/qml/Qt/WebSockets
 
-find ${VOLUME}/${APPNAME}.app/Contents -type d -name "*.dSYM" -exec rm -r {} +
+find ${VOLUME}/ODLA/${APPNAME}.app/Contents -type d -name "*.dSYM" -exec rm -r {} +
 
 #homebrew libs may not be writable force it?
 chmod -R +w /usr/local/Cellar/
 
 deployPath=$(which macdeployqt)
 qmlDir="${deployPath%macdeployqt}"../qml
-macdeployqt ${VOLUME}/${APPNAME}.app -qmldir=$qmlDir
+macdeployqt ${VOLUME}/ODLA/${APPNAME}.app -qmldir=$qmlDir
+macdeployqt ${VOLUME}/ODLA/Odla.app
 
 # fix the libs, qt5.6 has @rpath...
-BIN_FILE=${VOLUME}/${APPNAME}.app/Contents/MacOS/mscore
+BIN_FILE=${VOLUME}/ODLA/${APPNAME}.app/Contents/MacOS/mscore
 change_rpath $BIN_FILE
 # fix the QWebEngineProcess, qt5.9 has @rpath...
-WebEngineProcess=${VOLUME}/${APPNAME}.app/Contents/Frameworks/QtWebEngineCore.framework/Versions/5/Helpers/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess
+WebEngineProcess=${VOLUME}/ODLA/${APPNAME}.app/Contents/Frameworks/QtWebEngineCore.framework/Versions/5/Helpers/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess
 change_rpath_QWebEngine $WebEngineProcess
 
 # Workaround:
 # fix Homebrew libraries with hard coded absolute path, see QTBUG-56814
-FOLDER_NAME=${VOLUME}/${APPNAME}.app/Contents/Frameworks
+FOLDER_NAME=${VOLUME}/ODLA/${APPNAME}.app/Contents/Frameworks
 for P in `ls -d $FOLDER_NAME/*.* | awk '{print $1}'`
 do
     if [[ "$P" == *.dylib ]]
@@ -177,18 +182,18 @@ do
     fi
 done
 
-for f in $(find "${VOLUME}/${APPNAME}.app/Contents" -iname "*");
+for f in $(find "${VOLUME}/ODLA/${APPNAME}.app/Contents" -iname "*");
 do
   lipo -remove ppc7400 "$f" -output "$f" > /dev/null 2>&1
   lipo -remove x86 "$f" -output "$f" > /dev/null 2>&1
   lipo -remove ppc "$f" -output "$f" > /dev/null 2>&1
 done
 
-otool -L ${VOLUME}/${APPNAME}.app/Contents/MacOS/mscore
-otool -L ${VOLUME}/${APPNAME}.app/Contents/Frameworks/QtWebEngineCore.framework/Versions/5/Helpers/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess
+otool -L ${VOLUME}/ODLA/${APPNAME}.app/Contents/MacOS/mscore
+otool -L ${VOLUME}/ODLA/${APPNAME}.app/Contents/Frameworks/QtWebEngineCore.framework/Versions/5/Helpers/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess
 
-echo "Rename ${APPNAME}.app to ${VOLUME}/${LONGER_NAME}.app"
-mv ${VOLUME}/${APPNAME}.app "${VOLUME}/${LONGER_NAME}.app"
+echo Rename ${APPNAME}.app to ${VOLUME}/ODLA/${LONGER_NAME}.app
+mv ${VOLUME}/ODLA/${APPNAME}.app "${VOLUME}/ODLA/${LONGER_NAME}.app"
 
 
 echo "Copy in background image"
@@ -205,20 +210,20 @@ mv ${VOLUME}/Pictures ${VOLUME}/.Pictures
 
 # Most nested locations should go first
 CODE_PATHS=(
-    "${VOLUME}/${LONGER_NAME}.app/Contents/Frameworks/Sparkle.framework/Versions/A/Resources/Autoupdate.app"
-    "${VOLUME}/${LONGER_NAME}.app"
+    "${VOLUME}/ODLA/${LONGER_NAME}.app/Contents/Frameworks/Sparkle.framework/Versions/A/Resources/Autoupdate.app"
+    "${VOLUME}/ODLA/${LONGER_NAME}.app"
 )
 
 #codesign
 echo "Codesign"
 # `codesign --deep` doesn't seem to search for code in Contents/Resources directory so sign libraries in it manually
-find "${VOLUME}/${LONGER_NAME}.app/Contents/Resources" -name '*.dylib' -exec codesign --force --options runtime --deep -s "Developer ID Application: MuseScore" '{}' ';'
+find "${VOLUME}/ODLA/${LONGER_NAME}.app/Contents/Resources" -name '*.dylib' -exec codesign --force --options runtime --deep -s "Developer ID Application: MuseScore" '{}' ';'
 # Sign code in other (more conventional) locations
 codesign --force --options runtime --entitlements "${WORKING_DIRECTORY}/../build/macosx_entitlements.plist" --deep -s "Developer ID Application: MuseScore" "${CODE_PATHS[@]}"
 # Sign QtWebEngine application for MacOS Catalina
-codesign --force --verify --verbose --options runtime --entitlements "${WORKING_DIRECTORY}/../build/qtwebengineprocess.entitlements" --deep --sign "Developer ID Application: MuseScore" "${VOLUME}/${LONGER_NAME}.app/Contents/Frameworks/QtWebEngineCore.framework/Helpers/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess"
+codesign --force --verify --verbose --options runtime --entitlements "${WORKING_DIRECTORY}/../build/qtwebengineprocess.entitlements" --deep --sign "Developer ID Application: MuseScore" "${VOLUME}/ODLA/${LONGER_NAME}.app/Contents/Frameworks/QtWebEngineCore.framework/Helpers/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess"
 echo "spctl"
-spctl --assess --type execute "${VOLUME}/${LONGER_NAME}.app"
+spctl --assess --type execute "${VOLUME}/ODLA/${LONGER_NAME}.app"
 echo "Codesign verify"
 codesign --verify --deep --strict --verbose=2 "${CODE_PATHS[@]}"
 
