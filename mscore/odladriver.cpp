@@ -92,6 +92,15 @@ void ODLADriver::onIncomingData()
     par1 = inMessage["PAR1"].toInt(&par1Ok);
     par2 = inMessage["PAR2"].toInt(&par2Ok);
 
+    Measure* latestMeasure;
+    if(par1 == 19 && par2 == 0) //DIRTY BUG FIX FOR REPEAT MEASURE
+    {
+        if(_currentScore->selection().isRange())
+            latestMeasure = _currentScore->selection().lastChordRest()->findMeasure();
+        else if(_currentScore->selection().isSingle())
+            latestMeasure = _currentScore->selection().element()->findMeasure();
+    }
+
     QAction* playAction = getAction("play");
 
     if(     playAction->isChecked()
@@ -163,6 +172,12 @@ void ODLADriver::onIncomingData()
                     Palette::applyPaletteElement(element);
                     if(command.contains("bracket")) // this is due to a bad behaviour of Musescore
                         accBracket();
+                    if(par1 == 19 && par2 == 0)
+                    {
+                        _scoreView->changeState(ViewState::NORMAL);
+                        _scoreView->changeState(ViewState::NOTE_ENTRY);
+                        _scoreView->gotoMeasure(latestMeasure);
+                    }
                     break;
             }
         }
@@ -387,11 +402,11 @@ void ODLADriver::emulateDrop(Element *e, Element *target)
 // Send status to Odla
 QMap<QString, QString> ODLADriver::speechFeedback(ODLADriver::SpeechFields flags)
 {
-    qDebug() << flags;
+    auto selection = _currentScore->selection();
     QMap<QString, QString> retVal;
-    if(_currentScore->selection().isSingle()) //if we have only an element selected
+    if(selection.isSingle()) //if we have only an element selected
     {
-        Element* e = _currentScore->selection().element();
+        Element* e = selection.element();
         if(e == nullptr)
             return retVal;
 
@@ -428,24 +443,26 @@ QMap<QString, QString> ODLADriver::speechFeedback(ODLADriver::SpeechFields flags
         if(flags.testFlag(BPMNumber))
             retVal["BPM"] = getBPM(e);
     }
-    else if(_currentScore->selection().isRange()) //if we have more than an element selected
+    else if(selection.isRange()) //if we have more than an element selected
     {
 
-        Segment* startSegment = _currentScore->selection().startSegment();
-        if(startSegment == nullptr) return retVal;
-        Segment* endSegment = _currentScore->selection().endSegment() ? _currentScore->selection().endSegment()->prev1MM() : _currentScore->lastSegment();
-        if(endSegment == nullptr) return retVal;
-        QString startBar, startBeat, endBar, endBeat;
-        getMeasureAndBeat(startSegment, startBar, startBeat);
-        getMeasureAndBeat(endSegment, endBar, endBeat);
+        auto firstElement = selection.firstChordRest();
+        if(firstElement == nullptr) return retVal;
+        auto lastElement = selection.lastChordRest();
+        if(lastElement == nullptr) return retVal;
+        QString firstBar, firstBeat, lastBar, lastBeat;
+        getMeasureAndBeat(firstElement, firstBar, firstBeat);
+        getMeasureAndBeat(lastElement, lastBar, lastBeat);
 
         QStringList ret;
-        ret << getStaff(startSegment)
-            << startBar
-            << startBeat
-            << getStaff(endSegment)
-            << startBar
-            << startBeat;
+        retVal["RANGE"] = "selected from: "
+                            + getStaff(firstElement)
+                            + firstBar
+                            + firstBeat
+                            + "to: "
+                            + getStaff(lastElement)
+                            + lastBar
+                            + lastBeat;
     }
     return retVal;
 }
@@ -455,9 +472,9 @@ QString ODLADriver::getNoteName(Element *e)
 {
     QString retVal;
     if (e->type() == ElementType::NOTE)
-        retVal = static_cast<Ms::Note*>(e)->tpcUserName(true);
+        retVal = static_cast<Ms::Note*>(e)->tpcUserName(true).remove(":") + "; ";
     else/* if (e->type() == ElementType::REST)*/
-        retVal = "rest";
+        retVal = qApp->translate("InspectorRest", "Rest").remove(":") + "; ";
     return retVal;
 }
 
@@ -466,9 +483,9 @@ QString ODLADriver::getDuration(Ms::Element* e)
 {
     QString retVal;
     if(e->parent()->type() == ElementType::CHORD)
-        return static_cast<Ms::ChordRest*>(e->parent())->durationUserName();
+        return static_cast<Ms::ChordRest*>(e->parent())->durationUserName().remove(":") + "; ";
     else if(e->type() == ElementType::REST)
-        return static_cast<Ms::ChordRest*>(e)->durationUserName();
+        return static_cast<Ms::ChordRest*>(e)->durationUserName().remove(":") + "; ";
     return "";
 }
 
@@ -481,21 +498,21 @@ void ODLADriver::getMeasureAndBeat(Ms::Element *e, QString &measureString, QStri
         return;
     TimeSigMap* tsm = e->score()->sigmap();
     tsm->tickValues(seg->tick().ticks(), &bar, &beat, &dontCare);
-    measureString = qApp->translate("Ms::ScoreAccessibility", "Measure: %1").arg(QString::number(bar + 1));
-    beatString = qApp->translate("Ms::ScoreAccessibility", "Beat: %1").arg(QString::number(beat + 1));
+    measureString = qApp->translate("Ms::ScoreAccessibility", "Measure: %1").arg(QString::number(bar + 1)).remove(":") + "; ";
+    beatString = qApp->translate("Ms::ScoreAccessibility", "Beat: %1").arg(QString::number(beat + 1)).remove(":") + "; ";
 }
 
 // Get the clef of the context of element
 QString ODLADriver::getClef(Element *e)
 {
-    return qApp->translate("clefTable", ClefInfo::name(_currentScore->staff(e->staffIdx())->clef(e->tick())));
+    return qApp->translate("clefTable", ClefInfo::name(_currentScore->staff(e->staffIdx())->clef(e->tick()))).remove(":") + "; ";
 }
 
 // Get the time signature of the context of element
 QString ODLADriver::getTimeSig(Element *e)
 {
     auto ts = _currentScore->staff(e->staffIdx())->timeSig(e->tick())->sig();
-    return QString("%1/%2").arg(ts.numerator()).arg(ts.denominator());
+    return QString("%1/%2").arg(ts.numerator()).arg(ts.denominator()).remove(":") + "; ";
 }
 
 // Get the Staff Key of the element
@@ -505,26 +522,30 @@ QString ODLADriver::getKeySignature(Element *e)
     auto k = _currentScore->staff(e->staffIdx())->keySigEvent(e->tick());//.key();
     auto ks = new KeySig(_currentScore);
     ks->setKeySigEvent(k);
-    return ks->accessibleInfo().split(": ").last();
+    retVal = ks->accessibleInfo().split(": ").last();
+    retVal.replace("#", " " + qApp->translate("Ms::ScoreAccessibility", "sharp"));
+    retVal.replace("♭", " " + qApp->translate("Ms::ScoreAccessibility", "flat"));
+    return retVal + "; ";
 }
 
 // Get the voice in which rest o note is placed
 QString ODLADriver::getVoice(Element *e)
 {
-    return QString::number(e->voice() + 1);
+    QString retVal = qApp->translate("QObject", "Voice: %1");
+    return retVal.arg(e->voice() + 1).remove(":") + "; ";
 }
 
 // Get the BPM setted before element
 QString ODLADriver::getBPM(Element *e)
 {
-    return QString::number(_currentScore->tempo(e->tick()) * 60);
+    return QString("%1 beat per minute").arg(_currentScore->tempo(e->tick()) * 60);
 }
 
 QString ODLADriver::getStaff(Element *e)
 {
     QString retVal = qApp->translate("Ms::ScoreAccessibility", "Staff: %1").arg(QString::number(e->staffIdx() + 1));
-    retVal += " " + e->staff()->part()->longName(e->tick());
-    return retVal;
+    retVal += QString(" (%1)").arg(e->staff()->part()->longName(e->tick()));
+    return retVal.remove(":") + "; ";
 }
 
 /*!
