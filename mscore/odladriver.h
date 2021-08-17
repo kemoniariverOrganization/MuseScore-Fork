@@ -63,7 +63,9 @@ private:
     Ms::Element *searchFromPalette(int paletteType, int cellIdx);
     void emulateDrop(Ms::Element *e, Ms::Element *target);
     QTimer *_reconnectTimer;
-    void accBracket();
+    void accBracket();    
+    Ms::Element *currentElement();
+    bool cursorOnTablature();
 
 public slots:
     void attemptConnection();

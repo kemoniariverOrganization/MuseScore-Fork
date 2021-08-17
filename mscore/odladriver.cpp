@@ -1,9 +1,12 @@
 #include <QDebug>
+#include <QTimer>
+#include <QAction>
 #include "odladriver.h"
 #include "masterpalette.h"
 #include "palette.h"
-#include "mscore/palette/paletteworkspace.h"
 #include "musescore.h"
+#include "shortcut.h"
+#include "mscore/palette/paletteworkspace.h"
 #include "libmscore/mscore.h"
 #include "libmscore/segment.h"
 #include "libmscore/tempotext.h"
@@ -16,6 +19,7 @@
 #include "libmscore/accidental.h"
 #include "libmscore/keysig.h"
 #include "libmscore/part.h"
+#include "odladriver.h"
 #include "scoreaccessibility.h"
 
 
@@ -33,13 +37,13 @@ ODLADriver* ODLADriver::instance(QObject* parent)
 
 ODLADriver::ODLADriver(QObject *parent) : QObject(parent)
 {
-    _localSocket = new QLocalSocket(this);
+    _localSocket = new QLocalSocket();
     _currentScore = nullptr;
     _scoreView = nullptr;
     _editingChord = false;
     _paused = false;
 
-    _reconnectTimer = new QTimer(this);
+    _reconnectTimer = new QTimer();
     _reconnectTimer->start(2000);
 
     connect(_localSocket, &QLocalSocket::connected, this, &ODLADriver::onConnected);
@@ -63,15 +67,11 @@ void ODLADriver::onConnected()
 {
     _reconnectTimer->stop();
     qDebug() << "Connected to ODLA server";
-    qDebug() << "mscore pointer" << parent();
     qobject_cast<MuseScore*>(parent())->showMasterPalette(""); //Trick to load palette objects
-    qDebug() << "Trick";
 }
 
 void ODLADriver::onIncomingData()
 {
-    if (!_currentScore || !_scoreView)
-        return;
     // We can't move Musescore cast in odladriver.h in order to avoiding circular include
     auto _museScore = qobject_cast<Ms::MuseScore*>(this->parent());
     _museScore->setWindowState( (_museScore->windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
@@ -84,7 +84,6 @@ void ODLADriver::onIncomingData()
     stream >> inMessage;
     qDebug() << "received from ODLA: " << inMessage;
 
-
     QString stateBefore = inMessage["STATE"];
     QString command = inMessage["COM"];
     int par1; bool par1Ok = false;
@@ -92,17 +91,27 @@ void ODLADriver::onIncomingData()
     par1 = inMessage["PAR1"].toInt(&par1Ok);
     par2 = inMessage["PAR2"].toInt(&par2Ok);
 
-    Measure* latestMeasure;
-    if(par1 == 19 && par2 == 0) //DIRTY BUG FIX FOR REPEAT MEASURE
+    if(!_currentScore)
     {
-        if(_currentScore->selection().isRange())
-            latestMeasure = _currentScore->selection().lastChordRest()->findMeasure();
-        else if(_currentScore->selection().isSingle())
-            latestMeasure = _currentScore->selection().element()->findMeasure();
+        Shortcut* s = Shortcut::getShortcut(command.toUtf8());
+        if(s && !s->needsScore())
+            s->action()->trigger();
+        return;
     }
 
     QAction* playAction = getAction("play");
 
+
+    if (!stateBefore.isNull())
+    {
+        if(stateBefore == "NORMAL")
+            _scoreView->changeState(ViewState::NORMAL);
+        else if(stateBefore == "NOTE_ENTRY")
+            _scoreView->changeState(ViewState::NOTE_ENTRY);
+        QCoreApplication::processEvents();
+    }
+
+    //Replace commands in case of playing
     if(     playAction->isChecked()
         &&( command.contains("next-chord")
         ||  command.contains("prev-chord")
@@ -113,14 +122,13 @@ void ODLADriver::onIncomingData()
             stateBefore = "NC";
         }
 
-    if (stateBefore != 0)
+    //Replace commands in case of tablature
+    if(cursorOnTablature())
     {
-        if(stateBefore == "NORMAL")
-            _scoreView->changeState(ViewState::NORMAL);
-        else if(stateBefore == "NOTE_ENTRY")
-            _scoreView->changeState(ViewState::NOTE_ENTRY);
-        QCoreApplication::processEvents();
+        command.replace("up-chord","string-above");
+        command.replace("down-chord","string-below");
     }
+
     if (command == "play")
     {
         if(playAction->isChecked())
@@ -169,15 +177,26 @@ void ODLADriver::onIncomingData()
                 }
 
                 default:
-                    Palette::applyPaletteElement(element);
-                    if(command.contains("bracket")) // this is due to a bad behaviour of Musescore
-                        accBracket();
-                    if(par1 == 19 && par2 == 0)
+                    if(par1 == 19 && par2 == 0) //DIRTY BUG FIX FOR REPEAT MEASURE
                     {
+                        Measure* latestMeasure;
+                        if(_currentScore->selection().isRange())
+                            latestMeasure = _currentScore->selection().lastChordRest()->findMeasure();
+                        else if(_currentScore->selection().isSingle())
+                            latestMeasure = _currentScore->selection().element()->findMeasure();
+                        else
+                            break;
+
+                        Palette::applyPaletteElement(element);
+
                         _scoreView->changeState(ViewState::NORMAL);
                         _scoreView->changeState(ViewState::NOTE_ENTRY);
                         _scoreView->gotoMeasure(latestMeasure);
                     }
+                    else
+                        Palette::applyPaletteElement(element);
+                    if(command.contains("bracket")) // this is due to a bad behaviour of Musescore
+                        accBracket();
                     break;
             }
         }
@@ -263,11 +282,11 @@ void ODLADriver::onIncomingData()
         }
     }
 
-    else if (command == "line-view")
-        _currentScore->setLayoutMode(LayoutMode::LINE);
+    else if (command == "line-view" && _currentScore->layoutMode() == LayoutMode::PAGE)
+        _museScore->switchLayoutMode(LayoutMode::LINE);
 
-    else if (command == "page-view")
-        _currentScore->setLayoutMode(LayoutMode::PAGE);
+    else if (command == "page-view" && _currentScore->layoutMode() == LayoutMode::LINE)
+        _museScore->switchLayoutMode(LayoutMode::PAGE);
 
     else if (command == "tempo")
     {
@@ -342,7 +361,10 @@ void ODLADriver::onIncomingData()
         auto action = getAction(command.toUtf8());
         if(action)
             action->trigger();
-        else return;
+        else
+            return;
+        if(!_currentScore) // case file-close
+            return;
     }
 
     QCoreApplication::processEvents();
@@ -350,13 +372,37 @@ void ODLADriver::onIncomingData()
     {
         QByteArray outData;
         QDataStream outStream(&outData, QIODevice::WriteOnly);
-        outStream << speechFeedback(static_cast<SpeechFields>(inMessage["SpeechFlags"].toUInt()));
+        auto speecFlags = static_cast<SpeechFields>(inMessage["SpeechFlags"].toUInt());
+        outStream << speechFeedback(speecFlags);
         if (_localSocket && (_localSocket->state() == QLocalSocket::ConnectedState))
         {
             _localSocket->write(outData);
             _localSocket->flush();
         }
     }
+}
+
+bool ODLADriver::cursorOnTablature()
+{
+    if(!_scoreView)
+        return false;
+    if(!_scoreView->noteEntryMode())
+        return false;
+    if(!currentElement())
+        return false;
+    if(!currentElement()->staff())
+        return false;
+    return currentElement()->staff()->isTabStaff(currentElement()->tick());
+}
+
+Element *ODLADriver::currentElement()
+{
+    auto selection = _currentScore->selection();
+    if(selection.isSingle()) //if we have only an element selected
+        return selection.element();
+    else if(selection.isRange()) //if we have more than an element selected
+        return selection.firstChordRest();
+    else return nullptr;
 }
 
 void ODLADriver::accBracket()
@@ -402,8 +448,12 @@ void ODLADriver::emulateDrop(Element *e, Element *target)
 // Send status to Odla
 QMap<QString, QString> ODLADriver::speechFeedback(ODLADriver::SpeechFields flags)
 {
-    auto selection = _currentScore->selection();
     QMap<QString, QString> retVal;
+
+    if(!_currentScore)
+        return retVal;
+
+    auto selection = _currentScore->selection();
     if(selection.isSingle()) //if we have only an element selected
     {
         Element* e = selection.element();

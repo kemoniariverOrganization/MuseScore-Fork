@@ -484,7 +484,6 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
 
       void updateViewModeCombo();
 
-      void switchLayoutMode(LayoutMode);
       void setPlayRepeats(bool repeat);
       void setPanPlayback(bool pan);
 
@@ -600,6 +599,7 @@ class MuseScore : public QMainWindow, public MuseScoreCore {
       void mixerPreferencesChanged(bool showMidiControls);
       void checkForUpdates();
       void restartAudioEngine();
+      void switchLayoutMode(LayoutMode);
 
    public:
       MuseScore();
