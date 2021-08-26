@@ -123,11 +123,7 @@ void ODLADriver::onIncomingData()
         }
 
     //Replace commands in case of tablature
-    if(cursorOnTablature())
-    {
-        command.replace("up-chord","string-above");
-        command.replace("down-chord","string-below");
-    }
+    tablatureReplacements(command, par1);
 
     if (command == "play")
     {
@@ -382,17 +378,39 @@ void ODLADriver::onIncomingData()
     }
 }
 
-bool ODLADriver::cursorOnTablature()
+void ODLADriver::tablatureReplacements(QString &command, int staffPressed)
 {
     if(!_scoreView)
-        return false;
+        return;
     if(!_scoreView->noteEntryMode())
-        return false;
+        return;
+    if(!_scoreView->score())
+        return;
     if(!currentElement())
-        return false;
+        return;
     if(!currentElement()->staff())
-        return false;
-    return currentElement()->staff()->isTabStaff(currentElement()->tick());
+        return;
+    if(!currentElement()->staff()->isTabStaff(currentElement()->tick()))
+        return;
+
+    InputState& is = _scoreView->score()->inputState();
+    int stringsNum = currentElement()->staff()->part()->instrument(is.tick())->stringData()->strings();
+    bool upsideDown = (currentElement()->staff()->staffType(is.tick())->upsideDown());
+
+    if(command == "staff-pressed")
+    {
+        int strg = upsideDown ? stringsNum - staffPressed : staffPressed;
+        if(strg >= 0 && strg < stringsNum)
+        {
+            is.setString(strg);                       // update status
+            _scoreView->moveCursor();
+        }
+        command = "";
+    }
+    else if(command == "up-chord")
+        command = "string-above";
+    else if(command == "down-chord")
+        command = "string-below";
 }
 
 Element *ODLADriver::currentElement()

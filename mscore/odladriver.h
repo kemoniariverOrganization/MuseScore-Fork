@@ -65,7 +65,7 @@ private:
     QTimer *_reconnectTimer;
     void accBracket();    
     Ms::Element *currentElement();
-    bool cursorOnTablature();
+    void tablatureReplacements(QString &command, int staffNum);
 
 public slots:
     void attemptConnection();
