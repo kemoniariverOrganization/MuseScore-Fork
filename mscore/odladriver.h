@@ -66,6 +66,7 @@ private:
     void accBracket();    
     Ms::Element *currentElement();
     void tablatureReplacements(QString &command, int staffNum);
+    void drumReplacements(QString &command, int staffNum, int flags);
 
 public slots:
     void attemptConnection();

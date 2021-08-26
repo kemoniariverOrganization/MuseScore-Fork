@@ -19,9 +19,9 @@
 #include "libmscore/accidental.h"
 #include "libmscore/keysig.h"
 #include "libmscore/part.h"
+#include "libmscore/drumset.h"
 #include "odladriver.h"
 #include "scoreaccessibility.h"
-
 
 //QDataStream& operator>>(QDataStream &stream, QMap<QString> &m) { return m;}
 using namespace Ms;
@@ -101,6 +101,16 @@ void ODLADriver::onIncomingData()
 
     QAction* playAction = getAction("play");
 
+    //Replace commands in case of playing
+    if(     playAction->isChecked()
+        &&( command.contains("next-chord")
+        ||  command.contains("prev-chord")
+        ||  command.contains("next-measure")
+        ||  command.contains("prev-measure")))
+        {
+            command.prepend("play-");
+            stateBefore = "";
+        }
 
     if (!stateBefore.isNull())
     {
@@ -111,19 +121,10 @@ void ODLADriver::onIncomingData()
         QCoreApplication::processEvents();
     }
 
-    //Replace commands in case of playing
-    if(     playAction->isChecked()
-        &&( command.contains("next-chord")
-        ||  command.contains("prev-chord")
-        ||  command.contains("next-measure")
-        ||  command.contains("prev-measure")))
-        {
-            command.prepend("play-");
-            stateBefore = "NC";
-        }
-
     //Replace commands in case of tablature
     tablatureReplacements(command, par1);
+    //Replace commands in case of drum
+    drumReplacements(command, par1, par2);
 
     if (command == "play")
     {
@@ -380,6 +381,7 @@ void ODLADriver::onIncomingData()
 
 void ODLADriver::tablatureReplacements(QString &command, int staffPressed)
 {
+    qDebug() << "check if tablature, string: " << _scoreView->score()->inputState().string();
     if(!_scoreView)
         return;
     if(!_scoreView->noteEntryMode())
@@ -411,6 +413,51 @@ void ODLADriver::tablatureReplacements(QString &command, int staffPressed)
         command = "string-above";
     else if(command == "down-chord")
         command = "string-below";
+}
+
+void ODLADriver::drumReplacements(QString &command, int staffNum, int flags)
+{
+    if(!_scoreView)
+        return;
+    if(!_scoreView->noteEntryMode())
+        return;
+    if(!_scoreView->score())
+        return;
+    if(!currentElement())
+        return;
+    if(!currentElement()->staff())
+        return;
+    if(!currentElement()->staff()->isDrumStaff(currentElement()->tick()))
+        return;
+
+    if(command == "staff-pressed")
+    {
+        int drumCode;
+        bool keepchord = (flags & 1);
+        bool slur = (flags & 2);
+        switch(staffNum)
+        {
+            case -2: drumCode = 49; break; //crash
+            case -1: drumCode = 42; break; //hi-hat
+            case 0: drumCode = 51; break; //ride
+            case 1: drumCode = 47; break; //TOM1
+            case 2: drumCode = 45; break; //TOM2
+            case 3: drumCode = 38; break; //rullante
+            case 4: drumCode = 63; break;
+            case 5: drumCode = 41; break; //timpano
+            case 6: drumCode = 64; break;
+            case 7: drumCode = 36; break; //cassa
+            case 9: drumCode = 44; break; //hi-hat con piede
+            default: command = ""; return;
+        }
+        _currentScore->startCmd();
+        _currentScore->inputState().setDrumNote(drumCode);
+        _currentScore->cmdAddPitch(drumCode, keepchord, false);
+        _currentScore->endCmd();
+        if (slur && _currentScore->inputState().slur() == nullptr)
+            _scoreView->cmd(getAction("add-slur"));
+        command = "";
+    }
 }
 
 Element *ODLADriver::currentElement()
