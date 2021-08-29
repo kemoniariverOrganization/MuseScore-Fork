@@ -123,8 +123,6 @@ void ODLADriver::onIncomingData()
 
     //Replace commands in case of tablature
     tablatureReplacements(command, par1);
-    //Replace commands in case of drum
-    drumReplacements(command, par1, par2);
 
     if (command == "play")
     {
@@ -165,10 +163,7 @@ void ODLADriver::onIncomingData()
                     bool ok = false;
                     int bpm = command.toInt(&ok);
                     if(ok)
-                    {
                         tempo->setTempo(bpm);
-                        qDebug() << "setting bpm: " << bpm;
-                    }
                     Palette::applyPaletteElement(tempo);
                     break;
                 }
@@ -353,24 +348,16 @@ void ODLADriver::onIncomingData()
         }
     }
 
-    else if(!command.isEmpty())
-    {
-        auto action = getAction(command.toUtf8());
-        if(action)
-            action->trigger();
-        else
-            return;
-        if(!_currentScore) // case file-close
-            return;
-    }
+    else
+        executeShortcut(command);
 
     QCoreApplication::processEvents();
     if(inMessage["SpeechFlags"] != "0")
     {
         QByteArray outData;
         QDataStream outStream(&outData, QIODevice::WriteOnly);
-        auto speecFlags = static_cast<SpeechFields>(inMessage["SpeechFlags"].toUInt());
-        outStream << speechFeedback(speecFlags);
+        auto speechFlags = static_cast<SpeechFields>(inMessage["SpeechFlags"].toUInt());
+        outStream << speechFeedback(speechFlags);
         if (_localSocket && (_localSocket->state() == QLocalSocket::ConnectedState))
         {
             _localSocket->write(outData);
@@ -381,7 +368,6 @@ void ODLADriver::onIncomingData()
 
 void ODLADriver::tablatureReplacements(QString &command, int staffPressed)
 {
-    qDebug() << "check if tablature, string: " << _scoreView->score()->inputState().string();
     if(!_scoreView)
         return;
     if(!_scoreView->noteEntryMode())
@@ -415,48 +401,17 @@ void ODLADriver::tablatureReplacements(QString &command, int staffPressed)
         command = "string-below";
 }
 
-void ODLADriver::drumReplacements(QString &command, int staffNum, int flags)
+void ODLADriver::executeShortcut(QString command)
 {
-    if(!_scoreView)
-        return;
-    if(!_scoreView->noteEntryMode())
-        return;
-    if(!_scoreView->score())
-        return;
-    if(!currentElement())
-        return;
-    if(!currentElement()->staff())
-        return;
-    if(!currentElement()->staff()->isDrumStaff(currentElement()->tick()))
-        return;
-
-    if(command == "staff-pressed")
+    if(!command.isEmpty())
     {
-        int drumCode;
-        bool keepchord = (flags & 1);
-        bool slur = (flags & 2);
-        switch(staffNum)
-        {
-            case -2: drumCode = 49; break; //crash
-            case -1: drumCode = 42; break; //hi-hat
-            case 0: drumCode = 51; break; //ride
-            case 1: drumCode = 47; break; //TOM1
-            case 2: drumCode = 45; break; //TOM2
-            case 3: drumCode = 38; break; //rullante
-            case 4: drumCode = 63; break;
-            case 5: drumCode = 41; break; //timpano
-            case 6: drumCode = 64; break;
-            case 7: drumCode = 36; break; //cassa
-            case 9: drumCode = 44; break; //hi-hat con piede
-            default: command = ""; return;
-        }
-        _currentScore->startCmd();
-        _currentScore->inputState().setDrumNote(drumCode);
-        _currentScore->cmdAddPitch(drumCode, keepchord, false);
-        _currentScore->endCmd();
-        if (slur && _currentScore->inputState().slur() == nullptr)
-            _scoreView->cmd(getAction("add-slur"));
-        command = "";
+        auto action = getAction(command.toUtf8());
+        if(action)
+            action->trigger();
+        else
+            return;
+        if(!_currentScore) // case file-close
+            return;
     }
 }
 
@@ -587,9 +542,18 @@ QString ODLADriver::getNoteName(Element *e)
 {
     QString retVal;
     if (e->type() == ElementType::NOTE)
-        retVal = static_cast<Ms::Note*>(e)->tpcUserName(true).remove(":") + "; ";
+    {
+        Note* n = static_cast<Ms::Note*>(e);
+        const Drumset* drumset = n->part()->instrument(n->chord()->tick())->drumset();
+
+        if(n->staff()->isDrumStaff(n->tick()) && drumset)
+            retVal = qApp->translate("drumset", drumset->name(n->pitch()).toUtf8().constData());
+        else
+            retVal = n->tpcUserName(true).remove(":") + "; ";
+    }
     else/* if (e->type() == ElementType::REST)*/
         retVal = qApp->translate("InspectorRest", "Rest").remove(":") + "; ";
+        qDebug() << "note name:" << retVal;
     return retVal;
 }
 
