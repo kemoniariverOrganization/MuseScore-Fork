@@ -385,12 +385,12 @@ void ODLADriver::tablatureReplacements(QString &command, int staffPressed)
     int stringsNum = currentElement()->staff()->part()->instrument(is.tick())->stringData()->strings();
     bool upsideDown = (currentElement()->staff()->staffType(is.tick())->upsideDown());
 
-    if(command == "staff-pressed")
+    if(command == "staff-pressed" && !(staffPressed % 2))//only lines, not spaces
     {
-        int strg = upsideDown ? stringsNum - staffPressed : staffPressed;
+        int strg = upsideDown ? (stringsNum - staffPressed / 2) : (staffPressed / 2);
         if(strg >= 0 && strg < stringsNum)
         {
-            is.setString(strg);                       // update status
+            is.setString(strg);
             _scoreView->moveCursor();
         }
         command = "";
