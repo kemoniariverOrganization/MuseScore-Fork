@@ -352,6 +352,7 @@ void ODLADriver::onIncomingData()
         executeShortcut(command);
     else
     {
+        _localSocket.abort();
         executeShortcut("quit");
         return;
     }
