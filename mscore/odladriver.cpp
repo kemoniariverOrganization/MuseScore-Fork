@@ -348,8 +348,13 @@ void ODLADriver::onIncomingData()
         }
     }
 
-    else
+    else if(command != "quit")
         executeShortcut(command);
+    else
+    {
+        executeShortcut("quit");
+        return;
+    }
 
     QCoreApplication::processEvents();
     if(inMessage["SpeechFlags"] != "0")
