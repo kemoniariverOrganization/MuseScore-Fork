@@ -337,22 +337,38 @@ void ODLADriver::onIncomingData()
 
     else if (command == "time-signature")
     {
-        bool pw2 = par2 && !(par2 & (par2 - 1));
+        bool pw2 = par2 && !(par2 & (par2 - 1)), done = false;
+        auto ts = new TimeSig(_currentScore);
         if(pw2 && par1) //check if den is power of 2
         {
-            auto ts = new TimeSig(_currentScore);
             ts->setSig(Fraction(par1, par2), TimeSigType::NORMAL);
+            done = true;
+        }
+        else if(par1 == -2 && par2 == -2)
+        {
+            ts->setSig(Fraction(2, 2), TimeSigType::ALLA_BREVE);
+            done = true;
+        }
+        else if(par1 == -4 && par2 == -4)
+        {
+            ts->setSig(Fraction(4, 4), TimeSigType::FOUR_FOUR);
+            done = true;
+        }
+        if(done)
+        {
             emulateDrop(ts, _currentScore->inputState().segment()->measure());
             getAction("next-chord")->trigger();
             getAction("prev-chord")->trigger();
         }
+        else
+            delete ts;
     }
 
     else if(command != "quit")
         executeShortcut(command);
     else
     {
-        _localSocket.abort();
+        _localSocket->abort();
         executeShortcut("quit");
         return;
     }
