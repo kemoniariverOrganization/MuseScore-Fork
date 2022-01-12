@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QLocalSocket>
+#include <QLocalServer>
 #include <QMap>
 #include "scoreview.h"
 
@@ -43,8 +44,8 @@ public:
 private:
     ODLADriver(QObject *parent = nullptr);
     static ODLADriver * _instance;
-    QTranslator _localTranslator;
     QLocalSocket* _localSocket;
+    QLocalServer* _localServer;
     Ms::MasterScore* _currentScore;
     Ms::ScoreView* _scoreView;
     QTreeWidget * _palette;
@@ -62,14 +63,13 @@ private:
     QString getStaff(Ms::Element *e);
     Ms::Element *searchFromPalette(int paletteType, int cellIdx);
     void emulateDrop(Ms::Element *e, Ms::Element *target);
-    QTimer *_reconnectTimer;
     void accBracket();    
     Ms::Element *currentElement();
     void tablatureReplacements(QString &command, int staffNum);
     void executeShortcut(QString command);
 
 public slots:
-    void attemptConnection();
+    void onConnectionRequest();
     void setCurrentScore(Ms::MasterScore* current);
 
 protected slots:

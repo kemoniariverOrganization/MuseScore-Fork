@@ -38,34 +38,37 @@ ODLADriver* ODLADriver::instance(QObject* parent)
 ODLADriver::ODLADriver(QObject *parent) : QObject(parent)
 {
     _localSocket = new QLocalSocket();
+    _localServer = new QLocalServer();
     _currentScore = nullptr;
     _scoreView = nullptr;
     _editingChord = false;
     _paused = false;
 
-    _reconnectTimer = new QTimer();
-    _reconnectTimer->start(2000);
-
-    connect(_localSocket, &QLocalSocket::connected, this, &ODLADriver::onConnected);
-    connect(_localSocket, &QLocalSocket::readyRead, this, &ODLADriver::onIncomingData);
-
-    connect(_reconnectTimer, &QTimer::timeout, this, &ODLADriver::attemptConnection);
-    connect(_localSocket, &QLocalSocket::disconnected, _reconnectTimer, static_cast<void (QTimer::*)()> (&QTimer::start));
+    connect(_localServer, &QLocalServer::newConnection, this, &ODLADriver::onConnectionRequest);
+    _localServer->listen("ODLA_MSCORE_SERVER");
 }
 
-void ODLADriver::attemptConnection()
+void ODLADriver::onConnectionRequest()
 {
-    static int attempt = 0;
-    if (_localSocket && (_localSocket->state() == QLocalSocket::UnconnectedState))
+    qDebug() << tr("Connection request from ODLA...");
+
+    if (_localSocket != nullptr)
     {
-        _localSocket->connectToServer("ODLA_MSCORE_SERVER", QIODevice::ReadWrite);
-        qDebug() << "Connecting to server attempt " << ++attempt;
+        _localSocket->abort();
+        _localSocket->deleteLater();
     }
+    _localSocket = _localServer->nextPendingConnection();
+
+    if (_localSocket != nullptr)
+    {
+        connect(_localSocket, &QLocalSocket::connected, this, &ODLADriver::onConnected);
+        connect(_localSocket, &QLocalSocket::readyRead, this, &ODLADriver::onIncomingData);
+    }
+
 }
 
 void ODLADriver::onConnected()
 {
-    _reconnectTimer->stop();
     qDebug() << "Connected to ODLA server";
     qobject_cast<MuseScore*>(parent())->showMasterPalette(""); //Trick to load palette objects
 }
@@ -84,12 +87,12 @@ void ODLADriver::onIncomingData()
     stream >> inMessage;
     qDebug() << "received from ODLA: " << inMessage;
 
-    QString stateBefore = inMessage["STATE"];
-    QString command = inMessage["COM"];
-    int par1; bool par1Ok = false;
-    int par2; bool par2Ok = false;
-    par1 = inMessage["PAR1"].toInt(&par1Ok);
-    par2 = inMessage["PAR2"].toInt(&par2Ok);
+    QString command = inMessage["par1"];
+    QString stateBefore = inMessage["par2"];
+    int num1; bool num1Ok = false;
+    int num2; bool num2Ok = false;
+    num1 = inMessage["par3"].toInt(&num1Ok);
+    num2 = inMessage["par4"].toInt(&num2Ok);
 
     if(!_currentScore)
     {
@@ -122,7 +125,7 @@ void ODLADriver::onIncomingData()
     }
 
     //Replace commands in case of tablature
-    tablatureReplacements(command, par1);
+    tablatureReplacements(command, num1);
 
     if (command == "play")
     {
@@ -143,7 +146,7 @@ void ODLADriver::onIncomingData()
     }
     else if (command.startsWith("palette") && _currentScore->selection().state() != SelState::NONE)
     {
-        auto element = searchFromPalette(par1, par2);
+        auto element = searchFromPalette(num1, num2);
         if(element)
         {
             switch(element->type())
@@ -169,7 +172,7 @@ void ODLADriver::onIncomingData()
                 }
 
                 default:
-                    if(par1 == 19 && par2 == 0) //DIRTY BUG FIX FOR REPEAT MEASURE
+                    if(num1 == 19 && num2 == 0) //DIRTY BUG FIX FOR REPEAT MEASURE
                     {
                         Measure* latestMeasure;
                         if(_currentScore->selection().isRange())
@@ -195,11 +198,11 @@ void ODLADriver::onIncomingData()
     }
 
     else if (command == "insert-measures")
-        _scoreView->cmdInsertMeasures(par1, ElementType::MEASURE);
+        _scoreView->cmdInsertMeasures(num1, ElementType::MEASURE);
 
     else if (command == "goto")
     {
-        int target = par1 > 0 ? par1 : 1;
+        int target = num1 > 0 ? num1 : 1;
         target = target <= _currentScore->nmeasures() ? target : _currentScore->nmeasures();
         _currentScore->startCmd();
         _scoreView->searchMeasure(target);
@@ -208,8 +211,8 @@ void ODLADriver::onIncomingData()
 
     else if (command == "select-measures")
     {
-        int from =  par1;
-        int to =    par2;
+        int from =  num1;
+        int to =    num2;
 
         if(_scoreView->searchMeasure(from))
         {
@@ -239,10 +242,10 @@ void ODLADriver::onIncomingData()
 
     else if (command == "staff-pressed") // put note
     {
-        int line = par1;
+        int line = num1;
         // check chord option
-        bool keepchord = (par2 & 1);
-        bool slur = (par2 & 2);
+        bool keepchord = (num2 & 1);
+        bool slur = (num2 & 2);
         // disable slur
         if (!slur)
             _currentScore->inputState().setSlur(nullptr);
@@ -282,8 +285,8 @@ void ODLADriver::onIncomingData()
 
     else if (command == "tempo")
     {
-        int type = par1;
-        int bpm = par2;
+        int type = num1;
+        int bpm = num2;
 
         // pattern, ratio, relative, followtext
         QString pattern;
@@ -337,19 +340,19 @@ void ODLADriver::onIncomingData()
 
     else if (command == "time-signature")
     {
-        bool pw2 = par2 && !(par2 & (par2 - 1)), done = false;
+        bool pw2 = num2 && !(num2 & (num2 - 1)), done = false;
         auto ts = new TimeSig(_currentScore);
-        if(pw2 && par1) //check if den is power of 2
+        if(pw2 && num1) //check if den is power of 2
         {
-            ts->setSig(Fraction(par1, par2), TimeSigType::NORMAL);
+            ts->setSig(Fraction(num1, num2), TimeSigType::NORMAL);
             done = true;
         }
-        else if(par1 == -2 && par2 == -2)
+        else if(num1 == -2 && num2 == -2)
         {
             ts->setSig(Fraction(2, 2), TimeSigType::ALLA_BREVE);
             done = true;
         }
-        else if(par1 == -4 && par2 == -4)
+        else if(num1 == -4 && num2 == -4)
         {
             ts->setSig(Fraction(4, 4), TimeSigType::FOUR_FOUR);
             done = true;
@@ -374,12 +377,14 @@ void ODLADriver::onIncomingData()
     }
 
     QCoreApplication::processEvents();
-    if(inMessage["SpeechFlags"] != "0")
+    if(inMessage.contains("SpeechFlags") && inMessage["SpeechFlags"] != "0")
     {
         QByteArray outData;
         QDataStream outStream(&outData, QIODevice::WriteOnly);
         auto speechFlags = static_cast<SpeechFields>(inMessage["SpeechFlags"].toUInt());
-        outStream << speechFeedback(speechFlags);
+        auto toSay = speechFeedback(speechFlags);
+        outStream << toSay;
+        qDebug() << "speech feed:" << toSay;
         if (_localSocket && (_localSocket->state() == QLocalSocket::ConnectedState))
         {
             _localSocket->write(outData);
