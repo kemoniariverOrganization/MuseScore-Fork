@@ -37,15 +37,15 @@ ODLADriver* ODLADriver::instance(QObject* parent)
 
 ODLADriver::ODLADriver(QObject *parent) : QObject(parent)
 {
-    _localSocket = new QLocalSocket();
-    _localServer = new QLocalServer();
+    _localSocket = new QWebSocket();
+    _localServer = new QWebSocketServer("Musescore_Server", QWebSocketServer::NonSecureMode, this);
     _currentScore = nullptr;
     _scoreView = nullptr;
     _editingChord = false;
     _paused = false;
 
-    connect(_localServer, &QLocalServer::newConnection, this, &ODLADriver::onConnectionRequest);
-    _localServer->listen("ODLA_MSCORE_SERVER");
+    connect(_localServer, &QWebSocketServer::newConnection, this, &ODLADriver::onConnectionRequest);
+    _localServer->listen(QHostAddress::LocalHost, 6432);
 }
 
 void ODLADriver::onConnectionRequest()
@@ -61,8 +61,8 @@ void ODLADriver::onConnectionRequest()
 
     if (_localSocket != nullptr)
     {
-        connect(_localSocket, &QLocalSocket::connected, this, &ODLADriver::onConnected);
-        connect(_localSocket, &QLocalSocket::readyRead, this, &ODLADriver::onIncomingData);
+        connect(_localSocket, &QWebSocket::connected, this, &ODLADriver::onConnected);
+        connect(_localSocket, &QWebSocket::textMessageReceived, this, &ODLADriver::onIncomingData);
     }
 
 }
@@ -73,7 +73,7 @@ void ODLADriver::onConnected()
     qobject_cast<MuseScore*>(parent())->showMasterPalette(""); //Trick to load palette objects
 }
 
-void ODLADriver::onIncomingData()
+void ODLADriver::onIncomingData(const QString &odlaMessage)
 {
     // We can't move Musescore cast in odladriver.h in order to avoiding circular include
     auto _museScore = qobject_cast<Ms::MuseScore*>(this->parent());
@@ -81,18 +81,13 @@ void ODLADriver::onIncomingData()
     _museScore->raise();
     _museScore->activateWindow();    
 
-    QMap<QString, QString> inMessage;
-    QByteArray data = _localSocket->readAll();
-    QDataStream stream(&data, QIODevice::ReadOnly);
-    stream >> inMessage;
-    qDebug() << "received from ODLA: " << inMessage;
+    QJsonObject jsonInput = QJsonDocument::fromJson(odlaMessage.toUtf8()).object();
 
-    QString command = inMessage["par1"];
-    QString stateBefore = inMessage["par2"];
-    int num1; bool num1Ok = false;
-    int num2; bool num2Ok = false;
-    num1 = inMessage["par3"].toInt(&num1Ok);
-    num2 = inMessage["par4"].toInt(&num2Ok);
+    QString command = jsonInput["par1"].toString();
+    QString stateBefore = jsonInput["par2"].toString();
+    int num1 = jsonInput["par3"].toString().toInt();
+    int num2 = jsonInput["par4"].toString().toInt();
+    qDebug() << "received from ODLA: " << jsonInput << "par1" << command<< "par2" << stateBefore<< "par3" << num1<< "par4" << num2;
 
     if(!_currentScore)
     {
@@ -377,17 +372,17 @@ void ODLADriver::onIncomingData()
     }
 
     QCoreApplication::processEvents();
-    if(inMessage.contains("SpeechFlags") && inMessage["SpeechFlags"] != "0")
+    if(jsonInput.contains("SpeechFlags") && jsonInput["SpeechFlags"] != "0")
     {
         QByteArray outData;
         QDataStream outStream(&outData, QIODevice::WriteOnly);
-        auto speechFlags = static_cast<SpeechFields>(inMessage["SpeechFlags"].toUInt());
+        auto speechFlags = static_cast<SpeechFields>(jsonInput["SpeechFlags"].toInt());
         auto toSay = speechFeedback(speechFlags);
         outStream << toSay;
         qDebug() << "speech feed:" << toSay;
-        if (_localSocket && (_localSocket->state() == QLocalSocket::ConnectedState))
+        if (_localSocket && (_localSocket->state() == QAbstractSocket::ConnectedState))
         {
-            _localSocket->write(outData);
+            _localSocket->sendBinaryMessage(outData);
             _localSocket->flush();
         }
     }

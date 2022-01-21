@@ -2,8 +2,9 @@
 #define ODLADRIVER_H
 
 #include <QObject>
-#include <QLocalSocket>
-#include <QLocalServer>
+#include <QtWebSockets/QtWebSockets>
+#include <QtWebSockets/QWebSocketServer>
+#include <QTreeWidget>
 #include <QMap>
 #include "scoreview.h"
 
@@ -44,8 +45,8 @@ public:
 private:
     ODLADriver(QObject *parent = nullptr);
     static ODLADriver * _instance;
-    QLocalSocket* _localSocket;
-    QLocalServer* _localServer;
+    QWebSocket* _localSocket;
+    QWebSocketServer* _localServer;
     Ms::MasterScore* _currentScore;
     Ms::ScoreView* _scoreView;
     QTreeWidget * _palette;
@@ -74,7 +75,7 @@ public slots:
 
 protected slots:
     void onConnected();
-    void onIncomingData();
+    void onIncomingData(const QString &odlaMessage);
     QMap<QString, QString> speechFeedback(ODLADriver::SpeechFields flags);
 };
 
