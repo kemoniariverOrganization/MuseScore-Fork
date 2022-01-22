@@ -85,8 +85,8 @@ void ODLADriver::onIncomingData(const QString &odlaMessage)
 
     QString command = jsonInput["par1"].toString();
     QString stateBefore = jsonInput["par2"].toString();
-    int num1 = jsonInput["par3"].toString().toInt();
-    int num2 = jsonInput["par4"].toString().toInt();
+    int num1 = jsonInput["par3"].toInt();
+    int num2 = jsonInput["par4"].toInt();
     qDebug() << "received from ODLA: " << jsonInput << "par1" << command<< "par2" << stateBefore<< "par3" << num1<< "par4" << num2;
 
     if(!_currentScore)
