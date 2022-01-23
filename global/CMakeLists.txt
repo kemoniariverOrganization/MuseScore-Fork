@@ -19,7 +19,8 @@
 get_filename_component(DIR_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 message("Configuring " ${DIR_NAME})
 
-find_package(Qt5 COMPONENTS Core REQUIRED CONFIG)
+find_package(Qt5 COMPONENTS Core WebSockets REQUIRED CONFIG)
+
 add_definitions(
     ${Qt5Core_DEFINITIONS}
 )
@@ -36,3 +37,4 @@ file(GLOB_RECURSE global_SOURCES RELATIVE ${CMAKE_CURRENT_LIST_DIR} *.cpp)
 file(GLOB_RECURSE global_HEADERS RELATIVE ${CMAKE_CURRENT_LIST_DIR} *.h)
 
 add_library(global ${LIBRARY_TYPE} ${global_SOURCES} ${global_HEADERS})
+target_link_libraries(global Qt5::WebSockets)
