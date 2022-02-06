@@ -374,15 +374,14 @@ void ODLADriver::onIncomingData(const QString &odlaMessage)
     QCoreApplication::processEvents();
     if(jsonInput.contains("SpeechFlags") && jsonInput["SpeechFlags"] != "0")
     {
-        QByteArray outData;
-        QDataStream outStream(&outData, QIODevice::WriteOnly);
         auto speechFlags = static_cast<SpeechFields>(jsonInput["SpeechFlags"].toInt());
-        auto toSay = speechFeedback(speechFlags);
-        outStream << toSay;
-        qDebug() << "speech feed:" << toSay;
+        QJsonObject jsObj = speechFeedback(speechFlags);
+        QJsonDocument jsDoc(jsObj);
+        QString jsString = QString::fromLatin1(jsDoc.toJson(QJsonDocument::Compact));
+
         if (_localSocket && (_localSocket->state() == QAbstractSocket::ConnectedState))
         {
-            _localSocket->sendBinaryMessage(outData);
+            _localSocket->sendTextMessage(jsString);
             _localSocket->flush();
         }
     }
@@ -491,9 +490,9 @@ void ODLADriver::emulateDrop(Element *e, Element *target)
 }
 
 // Send status to Odla
-QMap<QString, QString> ODLADriver::speechFeedback(ODLADriver::SpeechFields flags)
+QJsonObject ODLADriver::speechFeedback(ODLADriver::SpeechFields flags)
 {
-    QMap<QString, QString> retVal;
+    QJsonObject retVal;
 
     if(!_currentScore)
         return retVal;
@@ -506,7 +505,14 @@ QMap<QString, QString> ODLADriver::speechFeedback(ODLADriver::SpeechFields flags
             return retVal;
 
         if(flags.testFlag(NoteName))
+        {
             retVal["NOT"] = getNoteName(e);
+            qDebug() << "note selected" << getNoteName(e);
+            qDebug() << "retVal" << retVal;
+
+        }
+        else
+            qDebug() << "note not selected";
 
         if(flags.testFlag(DurationName))
             retVal["DUR"] = getDuration(e);
