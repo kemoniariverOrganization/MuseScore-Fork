@@ -367,6 +367,7 @@ void ODLADriver::onIncomingData(const QString &odlaMessage)
     else
     {
         _localSocket->abort();
+        _localServer->close();
         executeShortcut("quit");
         return;
     }
