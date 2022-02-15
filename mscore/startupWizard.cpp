@@ -149,7 +149,12 @@ StartupWizardPage4::StartupWizardPage4(QWidget* parent)
       yesButton = new QRadioButton(tr("Yes"), this);
       noButton  = new QRadioButton(tr("No"), this);
 
-      yesButton->setChecked(true);
+      yesButton->setChecked(false);
+      noButton->setChecked(true);
+
+      yesButton->setCheckable(false);
+      noButton->setCheckable(false);
+
       QHBoxLayout* buttonLayout = new QHBoxLayout();
       buttonLayout->addWidget(yesButton);
       buttonLayout->addWidget(noButton);
@@ -188,8 +193,10 @@ StartupWizard::StartupWizard(QWidget* parent)
       addPage(p0);
       addPage(p1);
       addPage(p2);
-      addPage(p4);
+      int toRemove = addPage(p4);
       addPage(p5);
+
+      removePage(toRemove);
 
       connect(p1->getLanguages(), SIGNAL(currentIndexChanged(int)), SLOT(langChanged()));
       }
