@@ -344,10 +344,10 @@ if (MINGW OR MSVC OR APPLE)
   else(MINGW OR MSVC)
        # Option for Apple
        SET(Mscore_INSTALL_NAME  "Contents/Resources/")
-       SET(Mscore_SHARE_NAME    "mscore.app/")
+       SET(Mscore_SHARE_NAME    "Musescore ODLA.app/")
   endif(MINGW OR MSVC)
 else (MINGW OR MSVC OR APPLE)
-      SET(Mscore_INSTALL_NAME  "mscore${MSCORE_INSTALL_SUFFIX}-${MUSESCORE_VERSION}/")
+      SET(Mscore_INSTALL_NAME  "Musescore ODLA")
       SET(Mscore_SHARE_NAME    "share/")
 endif (MINGW OR MSVC OR APPLE)
 
