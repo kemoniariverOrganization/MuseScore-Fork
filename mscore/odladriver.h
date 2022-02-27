@@ -77,6 +77,7 @@ protected slots:
     void onConnected();
     void onIncomingData(const QString &odlaMessage);
     QJsonObject speechFeedback(ODLADriver::SpeechFields flags);
+    void reactivateServer();
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(ODLADriver::SpeechFields)

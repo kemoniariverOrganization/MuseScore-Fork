@@ -45,6 +45,12 @@ ODLADriver::ODLADriver(QObject *parent) : QObject(parent)
     _paused = false;
 
     connect(_localServer, &QWebSocketServer::newConnection, this, &ODLADriver::onConnectionRequest);
+    connect(qobject_cast<Ms::MuseScore*>(this->parent()), &MuseScore::quitIgnored, this, &ODLADriver::reactivateServer);
+    _localServer->listen(QHostAddress::LocalHost, 6432);
+}
+
+void ODLADriver::reactivateServer()
+{
     _localServer->listen(QHostAddress::LocalHost, 6432);
 }
 

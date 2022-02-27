@@ -385,6 +385,7 @@ void MuseScore::closeEvent(QCloseEvent* ev)
             if (checkDirty(score)) {
                   // The user has canceled out entirely, so ignore the close event.
                   ev->ignore();
+                  emit quitIgnored();
                   return;
                   }
             // If the score is still flagged as newly created at this point, it means that either it's empty or the user has just
