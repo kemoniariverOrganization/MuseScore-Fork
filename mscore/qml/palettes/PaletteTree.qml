@@ -418,7 +418,7 @@ ListView {
 
             highlighted: (activeFocus && !selected) || DelegateModel.isUnresolved
 
-            property bool popupExpanded: paletteTree.expandedPopupIndex == modelIndex
+            property bool popupExpanded: paletteTree.expandedPopupIndex === modelIndex
             function togglePopup() {
                 const expand = !popupExpanded;
                 paletteTree.expandedPopupIndex = expand ? modelIndex : null;
@@ -513,7 +513,7 @@ ListView {
                                                  : model.accessibleText
             Accessible.role: Accessible.TreeItem
 
-            width: parent.width
+            width: paletteTree.width
 
             Drag.active: paletteHeaderDragArea.drag.active
             Drag.dragType: Drag.Automatic
@@ -771,7 +771,7 @@ ListView {
 
     Connections {
         target: palettesWidget
-        onHasFocusChanged: {
+        function onHasFocusChanged() {
             if (!palettesWidget.hasFocus) {
                 paletteSelectionModel.clearSelection();
                 expandedPopupIndex = null;
