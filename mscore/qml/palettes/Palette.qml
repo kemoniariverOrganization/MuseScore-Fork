@@ -604,7 +604,7 @@ GridView {
                 if (hovered) {
                     mscore.tooltip.item = paletteCell;
                     mscore.tooltip.text = paletteCell.toolTip ? paletteCell.toolTip : "";
-                } else if (mscore.tooltip.item == paletteCell)
+                } else if (mscore.tooltip.item === paletteCell)
                     mscore.tooltip.item = null;
             }
 

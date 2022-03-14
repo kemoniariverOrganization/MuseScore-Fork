@@ -96,7 +96,7 @@ ListView {
     }
 
     onCurrentIndexChanged: {
-        if (paletteSelectionModel.hasSelection && paletteSelectionModel.currentIndex.row != currentIndex)
+        if (paletteSelectionModel.hasSelection && paletteSelectionModel.currentIndex.row !== currentIndex)
             paletteSelectionModel.clearSelection();
     }
 
