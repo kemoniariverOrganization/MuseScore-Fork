@@ -1,5 +1,5 @@
 #!/bin/bash
-export PATH=".:${PATH}:${HOME}/Qt/5.15.2/clang_64/bin"
+export PATH=".:${PATH}:${HOME}/Qt/5.9.9/clang_64/bin"
 
 # Copy in installer folder
 cp -R ./applebuild/Musescore\ ODLA.app ../ODLA/installer-mac/packages/it.kemoniariver.musescore/data
